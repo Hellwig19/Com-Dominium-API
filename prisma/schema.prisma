@@ -1,0 +1,279 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgres"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id            String   @db.VarChar(36) @id @default(uuid())
+  nome          String   @db.VarChar(60)
+  cpf           String   @db.VarChar(11)
+  rg            String   @db.VarChar(10)
+  email         String   @db.VarChar(40)
+  dataNasc      DateTime @default(now())
+  estadoCivil   EstadoCivil
+  profissao     String   @db.VarChar(30)
+  senha         String   @db.VarChar(60)   // senha deve ser varchar(60)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt  
+  propostas     Proposta[]
+  contatos      Contato[]
+  residencias   Residencia[]
+  moradores     Morador[]
+  visitas       Visita[]
+  prestadores   Prestador[]
+  veiculos      Veiculo[]
+  pagamentos    Pagamento[]
+  encomendas    Encomendas[]
+  reservas      Reserva[]
+  avisos        Aviso[]
+  votacoes      Votacao[]
+  recuperaSenhas RecuperaSenha[]
+  sugestoes    Sugestao[]
+  @@map("clientes")
+}
+
+model Proposta {
+  id          Int       @id @default(autoincrement())
+  cliente     Cliente    @relation(fields: [clienteId], references: [id])
+  clienteId   String    @db.VarChar(36)
+  descricao   String    @db.VarChar(255)
+  resposta    String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt  
+  admin       Admin?    @relation(fields: [adminId], references: [id])
+  adminId     String?    @db.VarChar(36) 
+  pagamentos  Pagamento[]
+  @@map("propostas")
+}
+
+model Admin {
+  id            String   @db.VarChar(36) @id @default(uuid())
+  nome          String   @db.VarChar(60)
+  email         String   @db.VarChar(40)
+  senha         String   @db.VarChar(60)   // senha deve ser varchar(60)
+  nivel         Int      @db.SmallInt @default(2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt  
+  propostas     Proposta[]
+  logs          Log[]
+  @@map("admins")
+}
+
+model Log {
+  id            Int         @id @default(autoincrement())
+  admin         Admin       @relation(fields: [adminId], references: [id])
+  adminId       String      @db.VarChar(36)
+  descricao     String      @db.VarChar(60)
+  complemento   String      @db.VarChar(200)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("logs")
+}
+
+model Contato{
+  id            Int         @id @default(autoincrement())
+  email         String      @db.VarChar(40)
+  telefone      String      @db.VarChar(15)
+  whatsapp      String      @db.VarChar(15)
+  cliente       Cliente     @relation(fields: [clienteId], references: [id])
+  clienteId     String      @db.VarChar(36)
+  @@map("contatos")
+}
+
+model Residencia {
+  id            Int      @id @default(autoincrement())
+  numeroCasa    String   @db.VarChar(3)
+  rua           String   @db.VarChar(30)
+  proprietario  String   @db.VarChar(60)
+  dataResidencia DateTime @default(now())
+  Tipo          Tipo
+  cliente       Cliente     @relation(fields: [clienteId], references: [id])
+  clienteId     String      @db.VarChar(36)
+  @@map("residencias")
+}
+
+model Morador {
+  id            Int      @id @default(autoincrement())
+  nome          String   @db.VarChar(60)
+  parentesco    String   @db.VarChar(30)
+  dataNasc      DateTime @default(now())
+  cpf           String   @db.VarChar(11)
+  email         String?   @db.VarChar(40)
+  contato       String   @db.VarChar(15)
+  residencia    String   @db.VarChar(60)
+  tipoMorador   TipoMorador
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("moradores")
+}
+
+model Veiculo{
+  id            Int      @id @default(autoincrement())
+  marca         String   @db.VarChar(30)
+  modelo        String   @db.VarChar(30)
+  ano           Int      @db.SmallInt
+  cor           String   @db.VarChar(20)
+  placa         String   @db.VarChar(7)
+  proprietario  String   @db.VarChar(60)
+  residencia    String   @db.VarChar(60)
+  garagem       String   @db.VarChar(3)
+  TipoVeiculo    TipoVeiculo
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("veiculos")
+}
+
+model Pagamento{
+  id            Int      @id @default(autoincrement())
+  boletos       String   @db.VarChar(60)
+  dataVencimento DateTime @default(now())
+  status        String   @db.VarChar(30)
+  valor         Float    @db.Real
+  dataPagamento DateTime @default(now())
+  metodoPagamento MetodoPagamento
+  proposta      Proposta @relation(fields: [propostaId], references: [id])
+  propostaId    Int
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("pagamentos")
+}
+
+model Visita{
+  id            Int      @id @default(autoincrement())
+  nome          String   @db.VarChar(60)
+  cpf           String   @db.VarChar(11)
+  contato       String   @db.VarChar(15)
+  dataVisita    DateTime @default(now())
+  horario       String   @db.VarChar(5)
+  observacoes   String   @db.VarChar(255)
+  residencia    String   @db.VarChar(60)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("visitas")
+}
+
+model Prestador{
+  id            Int      @id @default(autoincrement())
+  nome          String   @db.VarChar(60)
+  cpf           String   @db.VarChar(14)
+  contato       String   @db.VarChar(15)
+  email        String?   @db.VarChar(40) 
+  residencia    String   @db.VarChar(60)
+  servico       String   @db.VarChar(60)
+  dataServico   DateTime @default(now())
+  horario       String   @db.VarChar(5)
+  observacoes   String   @db.VarChar(255)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("prestadores")
+}
+
+model Encomendas{
+  id            Int      @id @default(autoincrement())
+  nome          String   @db.VarChar(60)
+  codigo        String   @db.VarChar(10)
+  remetente     String   @db.VarChar(60)
+  codigorastreio String   @db.VarChar(30)
+  tamanho       String   @db.VarChar(10)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId     String   @db.VarChar(36)
+  @@map("encomendas")
+}
+
+model Reserva {
+  id            Int      @id @default(autoincrement())
+  area          String   @db.VarChar(60)
+  dataReserva   DateTime @default(now())
+  valor         Float    @db.Real
+  status        String   @db.VarChar(30)
+  capacidade    Int      @db.SmallInt
+  horario       String   @db.VarChar(5)
+  clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@map("reservas")
+}
+
+model Aviso{
+  id            Int      @id @default(autoincrement())
+  titulo        String   @db.VarChar(60)
+  descricao     String   @db.VarChar(255)
+  data          DateTime @default(now())
+  clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@map("avisos")
+}
+
+model Votacao {
+  id            Int      @id @default(autoincrement())
+  titulo        String   @db.VarChar(60)
+  descricao     String   @db.VarChar(255)
+  dataInicio    DateTime @default(now())
+  dataFim       DateTime @default(now())
+  status        String   @db.VarChar(30)
+  opcoes        String   @db.VarChar(255)
+  votos         Int      @db.SmallInt @default(0)
+  clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@map("votacoes")
+}
+
+model RecuperaSenha{
+  id            Int      @id @default(autoincrement())
+  clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  token         String   @db.VarChar(255)
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  @@map("recupera_senha")
+}
+
+model Sugestao{
+  id            Int      @id @default(autoincrement())
+  titulo        String   @db.VarChar(60)
+  descricao     String   @db.VarChar(255)
+  data          DateTime @default(now())
+  clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@map("sugestoes")
+}
+
+
+enum MetodoPagamento {
+  CREDITO
+  DEBITO
+  BOLETO
+  PIX
+}
+
+enum EstadoCivil {
+  SOLTEIRO
+  CASADO
+  DIVORCIADO
+  VIUVO
+}
+
+enum TipoMorador {
+  PROPRIETARIO
+  INQUILINO
+}
+
+enum Tipo {
+  CASA
+  APARTAMENTO
+}
+
+enum TipoVeiculo {
+  CARRO
+  MOTO
+}
