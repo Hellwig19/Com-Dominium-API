@@ -2,41 +2,45 @@ import jwt from "jsonwebtoken"
 import { PrismaClient } from "@prisma/client"
 import { Router } from "express"
 import bcrypt from 'bcrypt'
+import { z } from 'zod'
 
 const prisma = new PrismaClient()
 const router = Router()
 
-router.post("/", async (req, res) => {
-  const { email, senha } = req.body
+const loginSchema = z.object({
+  email: z.string().email({ message: "Formato de e-mail inválido." }),
+  senha: z.string().min(1, { message: "A senha não pode estar em branco." }),
+});
 
-  // em termos de segurança, o recomendado é exibir uma mensagem padrão
-  // a fim de evitar de dar "dicas" sobre o processo de login para hackers
+router.post("/", async (req, res) => {
   const mensaPadrao = "Login ou senha incorretos"
 
-  if (!email || !senha) {
-    // res.status(400).json({ erro: "Informe e-mail e senha do usuário" })
-    res.status(400).json({ erro: mensaPadrao })
-    return
+  const result = loginSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({ erro: mensaPadrao });
   }
+  
+  const { email, senha } = result.data;
 
   try {
     const admin = await prisma.admin.findFirst({
-      where: { email }
+      where: { 
+        email,
+        ativo: true 
+      }
     })
 
-    if (admin == null) {
-      // res.status(400).json({ erro: "E-mail inválido" })
-      res.status(400).json({ erro: mensaPadrao })
-      return
+    if (!admin) {
+      return res.status(400).json({ erro: mensaPadrao });
     }
 
-    // se o e-mail existe, faz-se a comparação dos hashs
-    if (bcrypt.compareSync(senha, admin.senha)) {
-      // se confere, gera e retorna o token
+    const senhaValida = bcrypt.compareSync(senha, admin.senha);
+
+    if (senhaValida) {
       const token = jwt.sign({
-        adminLogadoId: admin.id,
-        adminLogadoNome: admin.nome,
-        adminLogadoNivel: admin.nivel
+        userId: admin.id,
+        userName: admin.nome,
+        userLevel: admin.nivel
       },
         process.env.JWT_KEY as string,
         { expiresIn: "1h" }
@@ -50,18 +54,19 @@ router.post("/", async (req, res) => {
         token
       })
     } else {
-      const descricao = "Tentativa de acesso ao sistema"
-      const complemento = "Admin: " + admin.id + " - " + admin.nome
-
-      // registra um log de erro de senha
-      const log = await prisma.log.create({
-        data: { descricao, complemento, adminId: admin.id }
+      await prisma.log.create({
+        data: { 
+          descricao: `Tentativa de acesso inválida para o e-mail: ${email}`,
+          complemento: `ID do Admin: ${admin.id}`,
+          adminId: admin.id 
+        }
       })
 
-      res.status(400).json({ erro: mensaPadrao })
+      res.status(400).json({ erro: mensaPadrao });
     }
   } catch (error) {
-    res.status(400).json(error)
+    console.error(error); 
+    res.status(500).json({ erro: "Ocorreu um erro interno no servidor." });
   }
 })
 

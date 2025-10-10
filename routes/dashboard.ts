@@ -1,75 +1,87 @@
 import { PrismaClient } from "@prisma/client"
 import { Router } from "express"
+import { verificaToken } from "../middlewares/verificaToken" 
 
 const prisma = new PrismaClient()
 const router = Router()
 
+router.use(verificaToken);
+
 router.get("/gerais", async (req, res) => {
   try {
-    const clientes = await prisma.cliente.count()
-    const carros = await prisma.carro.count()
-    const propostas = await prisma.proposta.count()
-    res.status(200).json({ clientes, carros, propostas })
+    const [clientes] = await prisma.$transaction([
+      prisma.cliente.count()
+    ]);
+
+    res.status(200).json({ clientes });
+
   } catch (error) {
-    res.status(400).json(error)
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar os dados gerais." });
   }
-})
+});
 
 type MarcaGroupByNome = {
   nome: string
   _count: {
-    carros: number
+    veiculos: number
   }
 }
 
-router.get("/carrosMarca", async (req, res) => {
+router.get("/veiculosMarca", async (req, res) => {
   try {
-    const marcas = await prisma.marca.findMany({
-      select: {
-        nome: true,
+    const veiculosPorModelo = await prisma.veiculo.groupBy({
+      by: ['modelo'],
+      _count: {
+        _all: true
+      },
+      orderBy: {
         _count: {
-          select: { carros: true }
+          modelo: 'desc'
         }
       }
-    })
+    });
 
-    const marcas2 = marcas
-        .filter((item: MarcaGroupByNome) => item._count.carros > 0)
-        .map((item: MarcaGroupByNome) => ({
-            marca: item.nome,
-            num: item._count.carros
-        }))
-    res.status(200).json(marcas2)
+    const resultado = veiculosPorModelo.map(item => ({
+      modelo: item.modelo,
+      num: item._count._all
+    }));
+
+    res.status(200).json(resultado);
+
   } catch (error) {
-    res.status(400).json(error)
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar os dados de veículos por marca." });
   }
-})
+});
 
-type ClienteGroupByCidade = {
-  cidade: string
+type ClienteGroupByEstadoCivil = {
+  estadoCivil: string
   _count: {
-    cidade: number
+    _all: number
   }
 }
 
-router.get("/clientesCidade", async (req, res) => {
+router.get("/clientesEstadoCivil", async (req, res) => {
   try {
     const clientes = await prisma.cliente.groupBy({
-      by: ['cidade'],
+      by: ['estadoCivil'],
       _count: {
-        cidade: true,
+        _all: true,
       },
-    })
+    });
 
-    const clientes2 = clientes.map((cliente: ClienteGroupByCidade) => ({
-      cidade: cliente.cidade,
-      num: cliente._count.cidade
-    }))
+    const resultado = clientes.map((cliente: ClienteGroupByEstadoCivil) => ({
+      estadoCivil: cliente.estadoCivil,
+      num: cliente._count._all
+    }));
 
-    res.status(200).json(clientes2)
+    res.status(200).json(resultado);
   } catch (error) {
-    res.status(400).json(error)
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar os dados de clientes por cidade." });
   }
-})
+});
+
 
 export default router

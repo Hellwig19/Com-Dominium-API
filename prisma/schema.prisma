@@ -16,16 +16,16 @@ datasource db {
 model Cliente {
   id            String   @db.VarChar(36) @id @default(uuid())
   nome          String   @db.VarChar(60)
-  cpf           String   @db.VarChar(11)
+  cpf           String   @db.VarChar(11) @unique
   rg            String   @db.VarChar(10)
-  email         String   @db.VarChar(40)
-  dataNasc      DateTime @default(now())
+  email         String   @db.VarChar(40) @unique
+  dataNasc      DateTime 
   estadoCivil   EstadoCivil
   profissao     String   @db.VarChar(30)
-  senha         String   @db.VarChar(60)   // senha deve ser varchar(60)
+  senha         String   @db.VarChar(60)     // senha deve ser varchar(60)
+  ativo         Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt  
-  propostas     Proposta[]
   contatos      Contato[]
   residencias   Residencia[]
   moradores     Morador[]
@@ -35,37 +35,26 @@ model Cliente {
   pagamentos    Pagamento[]
   encomendas    Encomendas[]
   reservas      Reserva[]
-  avisos        Aviso[]
-  votacoes      Votacao[]
+  votos Voto[]
   recuperaSenhas RecuperaSenha[]
   sugestoes    Sugestao[]
   @@map("clientes")
 }
 
-model Proposta {
-  id          Int       @id @default(autoincrement())
-  cliente     Cliente    @relation(fields: [clienteId], references: [id])
-  clienteId   String    @db.VarChar(36)
-  descricao   String    @db.VarChar(255)
-  resposta    String?   @db.VarChar(255)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt  
-  admin       Admin?    @relation(fields: [adminId], references: [id])
-  adminId     String?    @db.VarChar(36) 
-  pagamentos  Pagamento[]
-  @@map("propostas")
-}
 
 model Admin {
   id            String   @db.VarChar(36) @id @default(uuid())
   nome          String   @db.VarChar(60)
-  email         String   @db.VarChar(40)
+  cpf           String   @db.VarChar(11) @unique
+  email         String   @db.VarChar(40) @unique
   senha         String   @db.VarChar(60)   // senha deve ser varchar(60)
   nivel         Int      @db.SmallInt @default(2)
+  ativo         Boolean  @default(true) 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt  
-  propostas     Proposta[]
   logs          Log[]
+  avisos        Aviso[]
+  votacoes Votacao[]
   @@map("admins")
 }
 
@@ -96,10 +85,14 @@ model Residencia {
   numeroCasa    String   @db.VarChar(3)
   rua           String   @db.VarChar(30)
   proprietario  String   @db.VarChar(60)
-  dataResidencia DateTime @default(now())
+  dataResidencia DateTime 
   Tipo          Tipo
   cliente       Cliente     @relation(fields: [clienteId], references: [id])
   clienteId     String      @db.VarChar(36)
+  veiculos      Veiculo[]
+  moradores     Morador[]
+  visitas       Visita[]
+  prestadores   Prestador[]
   @@map("residencias")
 }
 
@@ -107,11 +100,12 @@ model Morador {
   id            Int      @id @default(autoincrement())
   nome          String   @db.VarChar(60)
   parentesco    String   @db.VarChar(30)
-  dataNasc      DateTime @default(now())
+  dataNasc      DateTime 
   cpf           String   @db.VarChar(11)
   email         String?   @db.VarChar(40)
   contato       String   @db.VarChar(15)
-  residencia    String   @db.VarChar(60)
+  residencia    Residencia @relation(fields: [residenciaId], references: [id])
+  residenciaId  Int
   tipoMorador   TipoMorador
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
@@ -126,7 +120,8 @@ model Veiculo{
   cor           String   @db.VarChar(20)
   placa         String   @db.VarChar(7)
   proprietario  String   @db.VarChar(60)
-  residencia    String   @db.VarChar(60)
+  residencia    Residencia @relation(fields: [residenciaId], references: [id])
+  residenciaId  Int
   garagem       String   @db.VarChar(3)
   TipoVeiculo    TipoVeiculo
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
@@ -137,13 +132,11 @@ model Veiculo{
 model Pagamento{
   id            Int      @id @default(autoincrement())
   boletos       String   @db.VarChar(60)
-  dataVencimento DateTime @default(now())
-  status        String   @db.VarChar(30)
+  dataVencimento DateTime 
+  status        StatusPagamento
   valor         Float    @db.Real
-  dataPagamento DateTime @default(now())
+  dataPagamento DateTime 
   metodoPagamento MetodoPagamento
-  proposta      Proposta @relation(fields: [propostaId], references: [id])
-  propostaId    Int
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
   @@map("pagamentos")
@@ -154,10 +147,11 @@ model Visita{
   nome          String   @db.VarChar(60)
   cpf           String   @db.VarChar(11)
   contato       String   @db.VarChar(15)
-  dataVisita    DateTime @default(now())
+  dataVisita    DateTime 
   horario       String   @db.VarChar(5)
-  observacoes   String   @db.VarChar(255)
-  residencia    String   @db.VarChar(60)
+  observacoes   String?   @db.VarChar(255)
+  residencia    Residencia @relation(fields: [residenciaId], references: [id])
+  residenciaId  Int
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
   @@map("visitas")
@@ -169,11 +163,12 @@ model Prestador{
   cpf           String   @db.VarChar(14)
   contato       String   @db.VarChar(15)
   email        String?   @db.VarChar(40) 
-  residencia    String   @db.VarChar(60)
+  residencia    Residencia @relation(fields: [residenciaId], references: [id])
+  residenciaId  Int
   servico       String   @db.VarChar(60)
-  dataServico   DateTime @default(now())
+  dataServico   DateTime 
   horario       String   @db.VarChar(5)
-  observacoes   String   @db.VarChar(255)
+  observacoes   String?   @db.VarChar(255)
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
   @@map("prestadores")
@@ -181,22 +176,27 @@ model Prestador{
 
 model Encomendas{
   id            Int      @id @default(autoincrement())
-  nome          String   @db.VarChar(60)
-  codigo        String   @db.VarChar(10)
+  nome          String   @db.VarChar(60)    
+  codigo        String?  @db.VarChar(10)  
   remetente     String   @db.VarChar(60)
-  codigorastreio String   @db.VarChar(30)
+  codigorastreio String?  @db.VarChar(30)
   tamanho       String   @db.VarChar(10)
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  status          StatusEncomenda   @default(AGUARDANDO_RETIRADA)
+  dataChegada     DateTime          @default(now())
+  dataRetirada    DateTime?
+  adminRegistroId String?           @db.VarChar(36)
+  adminEntregaId  String?           @db.VarChar(36)
   @@map("encomendas")
 }
 
 model Reserva {
   id            Int      @id @default(autoincrement())
   area          String   @db.VarChar(60)
-  dataReserva   DateTime @default(now())
+  dataReserva   DateTime 
   valor         Float    @db.Real
-  status        String   @db.VarChar(30)
+  status        StatusReserva
   capacidade    Int      @db.SmallInt
   horario       String   @db.VarChar(5)
   clienteId     String   @db.VarChar(36)
@@ -209,23 +209,46 @@ model Aviso{
   titulo        String   @db.VarChar(60)
   descricao     String   @db.VarChar(255)
   data          DateTime @default(now())
-  clienteId     String   @db.VarChar(36)
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  adminId     String   @db.VarChar(36)
+  admin       Admin    @relation(fields: [adminId], references: [id])
   @@map("avisos")
 }
 
 model Votacao {
-  id            Int      @id @default(autoincrement())
-  titulo        String   @db.VarChar(60)
-  descricao     String   @db.VarChar(255)
-  dataInicio    DateTime @default(now())
-  dataFim       DateTime @default(now())
-  status        String   @db.VarChar(30)
-  opcoes        String   @db.VarChar(255)
-  votos         Int      @db.SmallInt @default(0)
-  clienteId     String   @db.VarChar(36)
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  id          Int      @id @default(autoincrement())
+  titulo      String   @db.VarChar(60)
+  descricao   String   @db.VarChar(255)
+  dataInicio  DateTime
+  dataFim     DateTime
+  status      StatusVotacao @default(AGENDADA)
+  adminId     String   @db.VarChar(36)
+  admin       Admin    @relation(fields: [adminId], references: [id])
+  opcoes      OpcaoVotacao[]
+  votos       Voto[]
+
   @@map("votacoes")
+}
+
+model OpcaoVotacao {
+  id          Int      @id @default(autoincrement())
+  texto       String   @db.VarChar(100)
+  votacaoId   Int
+  votacao     Votacao  @relation(fields: [votacaoId], references: [id], onDelete: Cascade)
+  votos       Voto[]
+  @@map("opcoes_votacao")
+}
+
+model Voto {
+  id          Int      @id @default(autoincrement())
+  votacaoId   Int
+  votacao     Votacao  @relation(fields: [votacaoId], references: [id], onDelete: Cascade)
+  opcaoId     Int
+  opcao       OpcaoVotacao @relation(fields: [opcaoId], references: [id], onDelete: Cascade)
+  clienteId   String   @db.VarChar(36)
+  cliente     Cliente  @relation(fields: [clienteId], references: [id])
+  dataVoto    DateTime @default(now())
+  @@unique([votacaoId, clienteId])
+  @@map("votos")
 }
 
 model RecuperaSenha{
@@ -244,7 +267,7 @@ model Sugestao{
   descricao     String   @db.VarChar(255)
   data          DateTime @default(now())
   clienteId     String   @db.VarChar(36)
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   @@map("sugestoes")
 }
 
@@ -254,6 +277,31 @@ enum MetodoPagamento {
   DEBITO
   BOLETO
   PIX
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  ATRASADO
+  CANCELADO
+}
+
+enum StatusReserva {
+  CONFIRMADA
+  PENDENTE
+  CANCELADA
+}
+
+enum StatusVotacao {
+  EM_ANDAMENTO
+  FINALIZADA
+  AGENDADA
+  CANCELADA
+}
+
+enum StatusEncomenda {
+  AGUARDANDO_RETIRADA
+  ENTREGUE
 }
 
 enum EstadoCivil {

@@ -1,125 +1,101 @@
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, EstadoCivil } from "@prisma/client"
 import { Router } from "express"
 import bcrypt from 'bcrypt'
 import { z } from 'zod'
+import { verificaToken } from "../middlewares/verificaToken" 
 
 const prisma = new PrismaClient()
 const router = Router()
 
 const clienteSchema = z.object({
-  nome: z.string().min(10, {
-    message: "Nome do cliente deve possuir, no mínimo, 10 caracteres"
-  }),
-  email: z.string().email({message: "Informe um e-mail válido"}),
-  senha: z.string(),
-  cidade: z.string()
-})
+  nome: z.string().min(10, { message: "O nome deve ter no mínimo 10 caracteres." }),
+  cpf: z.string().length(11, { message: "O CPF deve ter exatamente 11 dígitos." }),
+  rg: z.string().min(7, { message: "O RG deve ter no mínimo 7 dígitos." }),
+  email: z.string().email({ message: "Formato de e-mail inválido." }),
+  dataNasc: z.string().datetime({ message: "Formato de data inválido." }),
+  estadoCivil: z.nativeEnum(EstadoCivil, { errorMap: () => ({ message: "Selecione um estado civil válido." }) }),
+  profissao: z.string().min(3, { message: "A profissão deve ter no mínimo 3 caracteres." }),
+  senha: z.string()
+    .min(8, { message: "A senha deve ter no mínimo 8 caracteres." })
+    .regex(/[A-Z]/, { message: "A senha deve conter pelo menos uma letra maiúscula." })
+    .regex(/[a-z]/, { message: "A senha deve conter pelo menos uma letra minúscula." })
+    .regex(/[0-9]/, { message: "A senha deve conter pelo menos um número." })
+    .regex(/[^A-Za-z0-9]/, { message: "A senha deve conter pelo menos um símbolo." }),
+});
 
 router.get("/", async (req, res) => {
   try {
-    const clientes = await prisma.cliente.findMany()
-    res.status(200).json(clientes)
+    const clientes = await prisma.cliente.findMany({
+      where: { ativo: true }
+    });
+    res.status(200).json(clientes);
   } catch (error) {
-    res.status(400).json(error)
+    res.status(500).json({ erro: "Não foi possível carregar os clientes." });
   }
-})
-
-function validaSenha(senha: string) {
-
-  const mensa: string[] = []
-
-  // .length: retorna o tamanho da string (da senha)
-  if (senha.length < 8) {
-    mensa.push("Erro... senha deve possuir, no mínimo, 8 caracteres")
-  }
-
-  // contadores
-  let pequenas = 0
-  let grandes = 0
-  let numeros = 0
-  let simbolos = 0
-
-  // senha = "abc123"
-  // letra = "a"
-
-  // percorre as letras da variável senha
-  for (const letra of senha) {
-    // expressão regular
-    if ((/[a-z]/).test(letra)) {
-      pequenas++
-    }
-    else if ((/[A-Z]/).test(letra)) {
-      grandes++
-    }
-    else if ((/[0-9]/).test(letra)) {
-      numeros++
-    } else {
-      simbolos++
-    }
-  }
-
-  if (pequenas == 0) {
-    mensa.push("Erro... senha deve possuir letra(s) minúscula(s)")
-  }
-
-  if (grandes == 0) {
-    mensa.push("Erro... senha deve possuir letra(s) maiúscula(s)")
-  }
-
-  if (numeros == 0) {
-    mensa.push("Erro... senha deve possuir número(s)")
-  }
-
-  if (simbolos == 0) {
-    mensa.push("Erro... senha deve possuir símbolo(s)")
-  }
-
-  return mensa
-}
+});
 
 router.post("/", async (req, res) => {
+  const result = clienteSchema.safeParse(req.body);
 
-  const valida = clienteSchema.safeParse(req.body)
-  if (!valida.success) {
-    res.status(400).json({ erro: valida.error })
-    return
+  if (!result.success) {
+    return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
   }
 
-  const erros = validaSenha(valida.data.senha)
-  if (erros.length > 0) {
-    res.status(400).json({ erro: erros.join("; ") })
-    return
-  }
+  const { nome, cpf, rg, email, dataNasc, estadoCivil, profissao, senha } = result.data;
 
-  // 12 é o número de voltas (repetições) que o algoritmo faz
-  // para gerar o salt (sal/tempero)
-  const salt = bcrypt.genSaltSync(12)
-  // gera o hash da senha acrescida do salt
-  const hash = bcrypt.hashSync(valida.data.senha, salt)
- 
-  const { nome, email, cidade } = valida.data
-
-  // para o campo senha, atribui o hash gerado
   try {
-    const cliente = await prisma.cliente.create({
-      data: { nome, email, senha: hash }
-    })
-    res.status(201).json(cliente)
-  } catch (error) {
-    res.status(400).json(error)
-  }
-})
+    const clienteExistente = await prisma.cliente.findFirst({
+      where: { OR: [{ email }, { cpf }] }
+    });
+    if (clienteExistente) {
+      return res.status(400).json({ erro: "CPF ou E-mail já cadastrado." });
+    }
 
-router.get("/:id", async (req, res) => {
-  const { id } = req.params
-  try {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id }
-    })
-    res.status(200).json(cliente)
-  } catch (error) {
-    res.status(400).json(error)
-  }
-})
+    const salt = bcrypt.genSaltSync(12);
+    const hashSenha = bcrypt.hashSync(senha, salt);
 
-export default router
+    const novoCliente = await prisma.cliente.create({
+      data: {
+        nome,
+        cpf,
+        rg,
+        email,
+        dataNasc: new Date(dataNasc),
+        estadoCivil,
+        profissao,
+        senha: hashSenha,
+      },
+    });
+    res.status(201).json(novoCliente);
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao criar novo cliente." });
+  }
+});
+
+router.delete("/:id", verificaToken, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const cliente = await prisma.cliente.update({
+            where: { id },
+            data: { ativo: false }
+        });
+
+        const adminId = req.userLogadoId as string; 
+        const adminNome = req.userLogadoNome as string; 
+
+        await prisma.log.create({
+            data: {
+                descricao: `Exclusão (lógica) do cliente: ${cliente.nome}`,
+                complemento: `Admin responsável: ${adminNome}`,
+                adminId,
+            }
+        });
+
+        res.status(200).json({ message: "Cliente desativado com sucesso." });
+    } catch (error) {
+        res.status(500).json({ erro: "Não foi possível desativar o cliente." });
+    }
+});
+
+export default router;
