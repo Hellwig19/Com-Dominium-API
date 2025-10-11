@@ -47,9 +47,9 @@ model Admin {
   nome          String   @db.VarChar(60)
   cpf           String   @db.VarChar(11) @unique
   email         String   @db.VarChar(40) @unique
-  senha         String   @db.VarChar(60)   // senha deve ser varchar(60)
+  senha         String   @db.VarChar(60) 
+  ativo         Boolean  @default(true)  // senha deve ser varchar(60)
   nivel         Int      @db.SmallInt @default(2)
-  ativo         Boolean  @default(true) 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt  
   logs          Log[]

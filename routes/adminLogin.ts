@@ -1,73 +1,65 @@
-import jwt from "jsonwebtoken"
-import { PrismaClient } from "@prisma/client"
-import { Router } from "express"
-import bcrypt from 'bcrypt'
-import { z } from 'zod'
+// Em routes/adminLogin.ts
 
-const prisma = new PrismaClient()
-const router = Router()
+import jwt from "jsonwebtoken";
+import { PrismaClient } from "@prisma/client";
+import { Router } from "express";
+import bcrypt from 'bcrypt';
+import { z } from 'zod';
 
+const prisma = new PrismaClient();
+const router = Router();
+
+// Schema de validação alterado para CPF
 const loginSchema = z.object({
-  email: z.string().email({ message: "Formato de e-mail inválido." }),
+  cpf: z.string().length(11, { message: "O CPF deve conter 11 dígitos." }),
   senha: z.string().min(1, { message: "A senha não pode estar em branco." }),
 });
 
 router.post("/", async (req, res) => {
-  const mensaPadrao = "Login ou senha incorretos"
+  const mensaPadrao = "CPF ou senha incorretos";
 
   const result = loginSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({ erro: mensaPadrao });
   }
   
-  const { email, senha } = result.data;
+  const { cpf, senha } = result.data;
 
   try {
+    // Busca o admin pelo CPF e verifica se está ativo
     const admin = await prisma.admin.findFirst({
       where: { 
-        email,
-        ativo: true 
+        cpf,
+        ativo: true
       }
-    })
+    });
 
-    if (!admin) {
+    if (!admin || !bcrypt.compareSync(senha, admin.senha)) {
       return res.status(400).json({ erro: mensaPadrao });
     }
 
-    const senhaValida = bcrypt.compareSync(senha, admin.senha);
+    // Gera o token com o padrão unificado que definimos
+    const token = jwt.sign({
+      userId: admin.id,
+      userName: admin.nome,
+      userLevel: admin.nivel
+    },
+      process.env.JWT_KEY as string,
+      { expiresIn: "1h" }
+    );
 
-    if (senhaValida) {
-      const token = jwt.sign({
-        userId: admin.id,
-        userName: admin.nome,
-        userLevel: admin.nivel
-      },
-        process.env.JWT_KEY as string,
-        { expiresIn: "1h" }
-      )
+    // Retorna os dados, incluindo o nível, para o front-end
+    res.status(200).json({
+      id: admin.id,
+      nome: admin.nome,
+      nivel: admin.nivel,
+      token
+    });
 
-      res.status(200).json({
-        id: admin.id,
-        nome: admin.nome,
-        email: admin.email,
-        nivel: admin.nivel,
-        token
-      })
-    } else {
-      await prisma.log.create({
-        data: { 
-          descricao: `Tentativa de acesso inválida para o e-mail: ${email}`,
-          complemento: `ID do Admin: ${admin.id}`,
-          adminId: admin.id 
-        }
-      })
-
-      res.status(400).json({ erro: mensaPadrao });
-    }
   } catch (error) {
-    console.error(error); 
+    console.error(error);
     res.status(500).json({ erro: "Ocorreu um erro interno no servidor." });
   }
-})
+});
 
-export default router
+export default router;

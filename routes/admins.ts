@@ -22,7 +22,7 @@ const adminSchema = z.object({
     .max(5, { message: "O nível deve ser no máximo 5." })
 });
 
-router.use(verificaToken);
+// router.use(verificaToken);
 
 router.get("/", async (req, res) => {
   try {
@@ -68,6 +68,7 @@ router.post("/", async (req, res) => {
     res.status(201).json(adminSemSenha);
 
   } catch (error) {
+    console.error(error); 
     res.status(500).json({ erro: "Erro ao criar novo administrador." });
   }
 });
