@@ -14,10 +14,12 @@ const residenciaSchema = z.object({
   clienteId: z.string().uuid({ message: "O ID do cliente deve ser um UUID válido." })
 });
 
+// Todas as rotas de residência exigem token
 router.use(verificaToken);
 
 // rotas admin
 router.post("/", async (req, res) => {
+  // Apenas Nível 2 (Admin) pode criar
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
   }
@@ -45,7 +47,7 @@ router.post("/", async (req, res) => {
         dataResidencia: new Date(dataResidencia),
         Tipo,
         clienteId,
-        proprietario: cliente.nome,
+        proprietario: cliente.nome, // Define o proprietário automaticamente
       },
     });
     res.status(201).json(novaResidencia);
@@ -64,7 +66,7 @@ router.get("/", async (req, res) => {
   try {
     const residencias = await prisma.residencia.findMany({
       include: {
-        cliente: { select: { nome: true } } 
+        cliente: { select: { nome: true } } // Inclui o nome do cliente
       }
     });
     res.status(200).json(residencias);
@@ -85,7 +87,7 @@ router.delete("/:id", async (req, res) => {
   try {
 
     await prisma.residencia.delete({
-      where: { id: Number(id) },
+      where: { id: Number(id) }, // ID da residência é um número
     });
     res.status(200).json({ message: "Residência removida com sucesso." });
   } catch (error) {
@@ -95,8 +97,9 @@ router.delete("/:id", async (req, res) => {
 });
 
 // rotas cliente
+// Rota para o cliente logado ver suas próprias residências
 router.get("/minhas", async (req, res) => {
-  const clienteId = req.userLogadoId;
+  const clienteId = req.userLogadoId; // Pego do token
 
   if (!clienteId) {
     return res.status(401).json({ erro: "Usuário não autenticado." });
