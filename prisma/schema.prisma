@@ -135,7 +135,7 @@ model Pagamento{
   dataVencimento DateTime 
   status        StatusPagamento
   valor         Float    @db.Real
-  dataPagamento DateTime 
+  dataPagamento DateTime? 
   metodoPagamento MetodoPagamento
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
