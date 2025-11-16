@@ -70,12 +70,18 @@ router.get("/residencia/:residenciaId", async (req, res) => {
     });
 
     if (!residencia) {
-      return res.status(403).json({ erro: "Acesso negado. A residência não pertence a este usuário." });
+      return res.status(403).json({ erro: "Acesso negado." });
     }
 
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); 
+
     const visitas = await prisma.visita.findMany({
-      where: { residenciaId: Number(residenciaId) },
-      orderBy: { dataVisita: 'desc' }
+      where: { 
+        residenciaId: Number(residenciaId),
+        dataVisita: { gte: hoje }
+      },
+      orderBy: { dataVisita: 'asc' }
     });
     res.status(200).json(visitas);
   } catch (error) {

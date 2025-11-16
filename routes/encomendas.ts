@@ -1,23 +1,28 @@
+
 import { PrismaClient, StatusEncomenda } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
-import { verificaToken } from "../middlewares/verificaToken"
+import { verificaToken } from "../middlewares/verificaToken";
 
 const prisma = new PrismaClient();
 const router = Router();
+
+
+const gerarCodigoRetirada = (): string => {
+  const codigo = Math.floor(1000 + Math.random() * 9000).toString();
+  return `#${codigo}`;
+}
 
 const encomendaSchema = z.object({
   nome: z.string().min(3, { message: "O nome do destinatário é obrigatório." }),
   remetente: z.string().min(3, { message: "O nome do remetente é obrigatório." }),
   tamanho: z.string().min(1, { message: "O tamanho da encomenda é obrigatório." }),
   clienteId: z.string().uuid({ message: "O ID do cliente é obrigatório." }),
-  codigo: z.string().optional(),
   codigorastreio: z.string().optional(),
 });
 
 router.use(verificaToken);
 
-// rotas admin
 router.post("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -37,9 +42,12 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ erro: "Cliente não encontrado." });
     }
 
+    const codigoUnico = gerarCodigoRetirada();
+
     const novaEncomenda = await prisma.encomendas.create({
       data: {
         ...dadosEncomenda,
+        codigo: codigoUnico,
         clienteId,
         adminRegistroId: adminId,
       },
@@ -80,7 +88,6 @@ router.patch("/:id/retirar", async (req, res) => {
   }
 });
 
-// rotas clientes
 router.get("/minhas", async (req, res) => {
   const clienteId = req.userLogadoId;
   const { status } = req.query; 

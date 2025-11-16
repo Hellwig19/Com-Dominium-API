@@ -109,6 +109,7 @@ model Morador {
   tipoMorador   TipoMorador
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
+  createdAt     DateTime @default(now())
   @@map("moradores")
 }
 
@@ -126,6 +127,7 @@ model Veiculo{
   TipoVeiculo    TipoVeiculo
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
+  createdAt     DateTime @default(now())
   @@map("veiculos")
 }
 

@@ -16,7 +16,6 @@ const pagamentoSchema = z.object({
 
 router.use(verificaToken);
 
-// rotas de admin
 router.post("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -54,7 +53,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Rota para LISTAR TODOS os pagamentos (apenas Admin)
 router.get("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -74,7 +72,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Rota para ATUALIZAR o status de um pagamento para PAGO (apenas Admin)
 router.patch("/:id/confirmar", async (req, res) => {
   const { id } = req.params;
 
@@ -116,14 +113,13 @@ router.get("/meus/proximo", async (req, res) => {
     const proximoPagamento = await prisma.pagamento.findFirst({
       where: {
         clienteId: clienteId,
-        status: 'PENDENTE' // Apenas os pendentes
+        status: 'PENDENTE' 
       },
       orderBy: { 
-        dataVencimento: 'asc' // Pega o mais próximo de vencer
+        dataVencimento: 'asc' 
       } 
     });
 
-    // Retorna o pagamento (ou null se não houver nenhum pendente)
     res.status(200).json(proximoPagamento); 
 
   } catch (error) {
@@ -132,7 +128,6 @@ router.get("/meus/proximo", async (req, res) => {
   }
 });
 
-// rotas clientes
 router.get("/meus", async (req, res) => {
   const clienteId = req.userLogadoId;
 

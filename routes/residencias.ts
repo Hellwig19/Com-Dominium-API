@@ -14,12 +14,9 @@ const residenciaSchema = z.object({
   clienteId: z.string().uuid({ message: "O ID do cliente deve ser um UUID válido." })
 });
 
-// Todas as rotas de residência exigem token
 router.use(verificaToken);
 
-// rotas admin
 router.post("/", async (req, res) => {
-  // Apenas Nível 2 (Admin) pode criar
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
   }
@@ -47,7 +44,7 @@ router.post("/", async (req, res) => {
         dataResidencia: new Date(dataResidencia),
         Tipo,
         clienteId,
-        proprietario: cliente.nome, // Define o proprietário automaticamente
+        proprietario: cliente.nome, 
       },
     });
     res.status(201).json(novaResidencia);
@@ -57,7 +54,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Rota para LISTAR TODAS as residências (apenas Admin)
 router.get("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -66,7 +62,7 @@ router.get("/", async (req, res) => {
   try {
     const residencias = await prisma.residencia.findMany({
       include: {
-        cliente: { select: { nome: true } } // Inclui o nome do cliente
+        cliente: { select: { nome: true } } 
       }
     });
     res.status(200).json(residencias);
@@ -76,7 +72,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Rota para DELETAR uma residência (apenas Admin)
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -87,7 +82,7 @@ router.delete("/:id", async (req, res) => {
   try {
 
     await prisma.residencia.delete({
-      where: { id: Number(id) }, // ID da residência é um número
+      where: { id: Number(id) }, 
     });
     res.status(200).json({ message: "Residência removida com sucesso." });
   } catch (error) {
@@ -96,10 +91,34 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// rotas cliente
-// Rota para o cliente logado ver suas próprias residências
+router.get("/minha-principal", async (req, res) => {
+  const clienteId = req.userLogadoId;
+
+  if (!clienteId) {
+    return res.status(401).json({ erro: "Usuário não autenticado." });
+  }
+
+  try {
+      const residencia = await prisma.residencia.findFirst({
+          where: { clienteId: clienteId },
+          select: { id: true, numeroCasa: true, rua: true }
+      });
+
+      if (!residencia) {
+          return res.status(404).json({ erro: "Nenhuma residência encontrada para este usuário." });
+      }
+      
+      res.status(200).json(residencia);
+
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ erro: "Não foi possível carregar a residência." });
+  }
+});
+
+
 router.get("/minhas", async (req, res) => {
-  const clienteId = req.userLogadoId; // Pego do token
+  const clienteId = req.userLogadoId;
 
   if (!clienteId) {
     return res.status(401).json({ erro: "Usuário não autenticado." });
