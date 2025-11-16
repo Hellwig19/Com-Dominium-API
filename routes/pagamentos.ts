@@ -105,6 +105,33 @@ router.patch("/:id/confirmar", async (req, res) => {
   }
 });
 
+router.get("/meus/proximo", async (req, res) => {
+  const clienteId = req.userLogadoId;
+
+  if (!clienteId) {
+    return res.status(401).json({ erro: "Usuário não autenticado." });
+  }
+
+  try {
+    const proximoPagamento = await prisma.pagamento.findFirst({
+      where: {
+        clienteId: clienteId,
+        status: 'PENDENTE' // Apenas os pendentes
+      },
+      orderBy: { 
+        dataVencimento: 'asc' // Pega o mais próximo de vencer
+      } 
+    });
+
+    // Retorna o pagamento (ou null se não houver nenhum pendente)
+    res.status(200).json(proximoPagamento); 
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível buscar o próximo pagamento." });
+  }
+});
+
 // rotas clientes
 router.get("/meus", async (req, res) => {
   const clienteId = req.userLogadoId;

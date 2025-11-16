@@ -209,6 +209,7 @@ model Aviso{
   titulo        String   @db.VarChar(60)
   descricao     String   @db.VarChar(255)
   data          DateTime @default(now())
+  tipo          TipoAviso @default(NORMAL)
   adminId     String   @db.VarChar(36)
   admin       Admin    @relation(fields: [adminId], references: [id])
   @@map("avisos")
@@ -271,6 +272,10 @@ model Sugestao{
   @@map("sugestoes")
 }
 
+enum TipoAviso {
+  URGENTE
+  NORMAL
+}
 
 enum MetodoPagamento {
   CREDITO

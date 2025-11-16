@@ -105,6 +105,54 @@ router.post("/:id/votar", async (req, res) => {
     }
 });
 
+router.get("/ativa", async (req, res) => {
+    try {
+      const agora = new Date();
+  
+      const votacaoAtiva = await prisma.votacao.findFirst({
+        where: {
+          // Você pode usar o status ou as datas. Datas é mais seguro:
+          dataInicio: { lte: agora }, // "lte" = menor ou igual (started)
+          dataFim: { gte: agora } // "gte" = maior ou igual (not ended yet)
+          // Ou, se você gerencia o status manualmente:
+          // status: 'EM_ANDAMENTO'
+        },
+        include: {
+          opcoes: true // Precisamos das opções para exibir
+        }
+      });
+  
+      if (!votacaoAtiva) {
+        // Isso não é um erro, apenas não há votação ativa
+        return res.status(200).json(null); 
+      }
+  
+      // Se achou, vamos pegar os resultados parciais (igual sua rota de resultados)
+      const contagemDeVotos = await prisma.voto.groupBy({
+        by: ['opcaoId'],
+        where: { votacaoId: votacaoAtiva.id },
+        _count: { _all: true }
+      });
+  
+      const resultadosParciais = votacaoAtiva.opcoes.map(opcao => {
+        const contagem = contagemDeVotos.find(v => v.opcaoId === opcao.id);
+        return {
+          ...opcao, // Inclui id e texto da opção
+          votos: contagem ? contagem._count._all : 0
+        };
+      });
+  
+      res.status(200).json({
+        ...votacaoAtiva,
+        opcoes: resultadosParciais // Substitui as opções pelas opções com contagem
+      });
+  
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ erro: "Não foi possível obter a votação ativa." });
+    }
+  });
+
 router.get("/:id/resultados", async (req, res) => {
     const { id: votacaoId } = req.params;
 
