@@ -72,6 +72,80 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.get("/me", verificaToken, async (req, res) => {
+  const clienteId = req.userLogadoId;
+
+  if (!clienteId) {
+    return res.status(401).json({ erro: "Usuário não autenticado." });
+  }
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: clienteId },
+      include: {
+        contatos: {
+          take: 1, 
+          select: { telefone: true }
+        },
+        residencias: {
+          take: 1,
+          select: { id: true, numeroCasa: true, rua: true, dataResidencia: true } //
+        }
+      }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ erro: "Cliente não encontrado." });
+    }
+    
+    const response = {
+      id: cliente.id,
+      nome: cliente.nome,
+      email: cliente.email,
+      telefone: cliente.contatos[0]?.telefone || null,
+      numeroCasa: cliente.residencias[0]?.numeroCasa || null,
+      setor: cliente.residencias[0]?.rua || null, 
+      residenciaId: cliente.residencias[0]?.id || null,
+      dataResidencia: cliente.residencias[0]?.dataResidencia || null 
+    };
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar o perfil." });
+  }
+});
+
+router.patch("/:id/aprovar", verificaToken, async (req, res) => {
+  if (req.userLogadoNivel !== 2) {
+    return res.status(403).json({ erro: "Acesso negado." });
+  }
+
+  const { id } = req.params;
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id }
+    });
+
+    if (!cliente) {
+      return res.status(404).json({ erro: "Cliente não encontrado." });
+    }
+
+    const clienteAprovado = await prisma.cliente.update({
+      where: { id },
+      data: { ativo: true }
+    });
+
+    res.status(200).json(clienteAprovado);
+
+  } catch (error) {
+    console.error("Erro ao aprovar cliente:", error);
+    res.status(500).json({ erro: "Não foi possível aprovar o cliente." });
+  }
+});
+
 router.delete("/:id", verificaToken, async (req, res) => {
     const { id } = req.params;
 

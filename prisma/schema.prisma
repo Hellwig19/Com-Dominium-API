@@ -23,7 +23,7 @@ model Cliente {
   estadoCivil   EstadoCivil
   profissao     String   @db.VarChar(30)
   senha         String   @db.VarChar(60)     // senha deve ser varchar(60)
-  ativo         Boolean  @default(true)
+  ativo         Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt  
   contatos      Contato[]
@@ -38,9 +38,22 @@ model Cliente {
   votos Voto[]
   recuperaSenhas RecuperaSenha[]
   sugestoes    Sugestao[]
+  documentos    Documento[]
   @@map("clientes")
 }
 
+model Documento {
+  id          Int      @id @default(autoincrement())
+  nomeArquivo String   @db.VarChar(100)
+  url         String   @db.VarChar(255)
+  tipo        String   @db.VarChar(50) 
+  tamanhoKB   Int
+  cliente     Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId   String   @db.VarChar(36)
+  createdAt   DateTime @default(now())
+
+  @@map("documentos")
+}
 
 model Admin {
   id            String   @db.VarChar(36) @id @default(uuid())

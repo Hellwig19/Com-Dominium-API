@@ -21,6 +21,7 @@ import routesAvisos from './routes/avisos'
 import routesVotacoes from './routes/votacoes'
 import routesSugestoes from './routes/sugestoes'
 import routesAtividades from './routes/atividades'
+import routesCadastro from './routes/cadastro'
 
 
 const app = express()
@@ -47,6 +48,7 @@ app.use("/avisos", routesAvisos)
 app.use("/votacoes", routesVotacoes)
 app.use("/sugestoes", routesSugestoes)
 app.use("/atividades", routesAtividades)
+app.use("/cadastro", routesCadastro)
 
 
 
