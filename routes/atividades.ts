@@ -133,4 +133,65 @@ router.get("/recentes", async (req, res) => {
   }
 });
 
+router.get("/geral", async (req, res) => {
+  const nivel = req.userLogadoNivel;
+  if (!nivel || (nivel !== 3 && nivel !== 2 && nivel !== 5)) {
+     return res.status(403).json({ erro: "Acesso negado." });
+  }
+
+  const LIMITE = 10;
+
+  try {
+    // Busca as últimas visitas registradas (Agora funciona pois adicionamos createdAt)
+    const visitas = await prisma.visita.findMany({
+      take: 5, 
+      orderBy: { createdAt: 'desc' }, // Ordena pela data de CRIAÇÃO do registro
+      include: { 
+        residencia: { 
+          select: { numeroCasa: true } 
+        } 
+      }
+    });
+    
+    const encomendas = await prisma.encomendas.findMany({
+      take: 5, 
+      orderBy: { dataChegada: 'desc' },
+      include: { 
+        cliente: { 
+          select: { nome: true } 
+        } 
+      }
+    });
+
+    // Mapeamento
+    // Precisamos tipar explicitamente ou deixar o TS inferir. 
+    // Com o banco atualizado, o erro da 'residencia' vai sumir aqui.
+    const feedVisitas = visitas.map(v => ({
+        id: `vis-${v.id}`,
+        tipo: 'VISITA',
+        titulo: `Visita: ${v.nome}`,
+        subtitulo: `Para Casa ${v.residencia.numeroCasa} - ${v.horario}`,
+        timestamp: v.createdAt 
+    }));
+
+    const feedEncomendas = encomendas.map(e => ({
+        id: `enc-${e.id}`,
+        tipo: 'ENCOMENDA',
+        titulo: `Encomenda: ${e.remetente}`,
+        subtitulo: `Para: ${e.cliente.nome}`,
+        timestamp: e.dataChegada
+    }));
+
+    const combined = [...feedVisitas, ...feedEncomendas]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, LIMITE);
+
+    res.json(combined);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Erro ao buscar log geral." });
+  }
+});
+
 export default router;

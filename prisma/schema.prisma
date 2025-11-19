@@ -169,7 +169,23 @@ model Visita{
   residenciaId  Int
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
+  createdAt     DateTime @default(now())
   @@map("visitas")
+}
+
+model Visitante {
+  id          Int       @id @default(autoincrement())
+  nome        String    @db.VarChar(60)
+  cpf         String    @db.VarChar(11)
+  numeroCasa  String    @db.VarChar(10) 
+  placa       String?   @db.VarChar(10)
+  observacoes String?   @db.VarChar(255)
+  status      StatusVisita @default(DENTRO)
+  dataEntrada DateTime  @default(now())
+  dataSaida   DateTime? 
+  porteiroId  String?   @db.VarChar(36) 
+
+  @@map("visitantes")
 }
 
 model Prestador{
@@ -208,12 +224,15 @@ model Encomendas{
 
 model Reserva {
   id            Int      @id @default(autoincrement())
-  area          String   @db.VarChar(60)
+
   dataReserva   DateTime 
   valor         Float    @db.Real
   status        StatusReserva
   capacidade    Int      @db.SmallInt
   horario       String   @db.VarChar(5)
+  areaId        Int
+  area          AreaComum @relation(fields: [areaId], references: [id])
+
   clienteId     String   @db.VarChar(36)
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   @@map("reservas")
@@ -287,6 +306,17 @@ model Sugestao{
   @@map("sugestoes")
 }
 
+model AreaComum {
+  id          Int           @id @default(autoincrement())
+  nome        String        @unique @db.VarChar(60) // Ex: "Salão de Festas"
+  capacidade  Int           @db.SmallInt
+  preco       Float         @db.Real
+  status      StatusArea    @default(ATIVO)
+  reservas    Reserva[]     // Relação com reservas
+  
+  @@map("areas_comuns")
+}
+
 enum TipoAviso {
   URGENTE
   NORMAL
@@ -344,4 +374,17 @@ enum Tipo {
 enum TipoVeiculo {
   CARRO
   MOTO
+}
+
+enum StatusArea {
+  ATIVO
+  MANUTENCAO
+  INATIVO
+  OCUPADO
+}
+
+enum StatusVisita {
+  AGENDADA
+  DENTRO
+  SAIU
 }

@@ -58,14 +58,26 @@ router.post("/", async (req, res) => {
 
 router.get("/", async (req, res) => {
     try {
-        const votacoes = await prisma.votacao.findMany({
-            orderBy: { dataInicio: 'desc' }
-        });
-        res.status(200).json(votacoes);
+      const votacoes = await prisma.votacao.findMany({
+        orderBy: { dataInicio: 'desc' },
+        include: {
+          _count: {
+            select: { votos: true } // Conta o total de votos
+          },
+          opcoes: {
+            include: {
+              _count: {
+                select: { votos: true } // Conta votos por opção
+              }
+            }
+          }
+        }
+      });
+      res.status(200).json(votacoes);
     } catch (error) {
-        res.status(500).json({ erro: "Não foi possível carregar as votações." });
+      res.status(500).json({ erro: "Não foi possível carregar as votações." });
     }
-});
+  });
 
 router.post("/:id/votar", async (req, res) => {
     const clienteId = req.userLogadoId as string;

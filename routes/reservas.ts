@@ -1,9 +1,7 @@
-
-
 import { PrismaClient, StatusReserva } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
-import { verificaToken } from "../middlewares/verificaToken"; 
+import { verificaToken } from "../middlewares/verificaToken";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -15,13 +13,14 @@ const reservaSchema = z.object({
   capacidade: z.number().int().positive({ message: "A capacidade deve ser um número positivo." }),
   horario: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "O horário deve estar no formato HH:MM." }),
 });
+
 const statusSchema = z.object({
     status: z.enum([StatusReserva.CONFIRMADA, StatusReserva.CANCELADA]),
 });
 
 router.use(verificaToken);
 
-
+// 1. Buscar datas ocupadas (CORRIGIDO)
 router.get("/datas-ocupadas", async (req, res) => {
     const { area } = req.query;
 
@@ -32,14 +31,17 @@ router.get("/datas-ocupadas", async (req, res) => {
     try {
         const reservasConfirmadas = await prisma.reserva.findMany({
             where: {
-                area: String(area),
-                status: StatusReserva.CONFIRMADA 
+                // AQUI MUDOU: Filtra pelo nome dentro da relação area
+                area: {
+                    nome: String(area) 
+                },
+                status: StatusReserva.CONFIRMADA
             },
             select: {
-                dataReserva: true 
+                dataReserva: true
             }
         });
-        
+
         const datas = reservasConfirmadas.map(r => r.dataReserva.toISOString());
         res.status(200).json(datas);
 
@@ -49,24 +51,124 @@ router.get("/datas-ocupadas", async (req, res) => {
     }
 });
 
+// 2. Buscar o que está ocupado hoje (CORRIGIDO)
+router.get("/hoje", async (req, res) => {
+  try {
+    const hojeInicio = new Date();
+    hojeInicio.setHours(0, 0, 0, 0);
 
+    const hojeFim = new Date();
+    hojeFim.setHours(23, 59, 59, 999);
+
+    const reservasHoje = await prisma.reserva.findMany({
+      where: {
+        dataReserva: {
+          gte: hojeInicio,
+          lte: hojeFim
+        },
+        status: 'CONFIRMADA'
+      },
+      // AQUI MUDOU: Trazemos os dados da area relacionada
+      include: { area: true } 
+    });
+
+    // Mapeamos para devolver apenas os nomes, como o front espera
+    const areasOcupadas = reservasHoje.map(r => r.area.nome);
+    res.status(200).json(areasOcupadas);
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao buscar status das áreas." });
+  }
+});
+
+// 3. Minhas Reservas (CORRIGIDO)
+router.get("/minhas", async (req, res) => {
+  const clienteId = req.userLogadoId;
+  if (!clienteId) {
+    return res.status(401).json({ erro: "Usuário não autenticado." });
+  }
+  try {
+    const reservas = await prisma.reserva.findMany({
+      where: { clienteId },
+      include: { area: true }, // Inclui detalhes da área
+      orderBy: { dataReserva: 'desc' }
+    });
+    
+    // Opcional: Achatar o objeto para facilitar pro front antigo, 
+    // ou você pode ajustar o front para ler 'reserva.area.nome'
+    const reservasFormatadas = reservas.map(r => ({
+        ...r,
+        area: r.area.nome // Mantém compatibilidade com front antigo que espera string
+    }));
+
+    res.status(200).json(reservasFormatadas);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar suas reservas." });
+  }
+});
+
+// 4. Listar todas (Admin) (CORRIGIDO)
+router.get("/", async (req, res) => {
+  if (req.userLogadoNivel !== 2) {
+    return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
+  }
+
+  const { status, data } = req.query;
+
+  let whereClause: any = {};
+
+  if (status) {
+    whereClause.status = status as StatusReserva;
+  }
+
+  if (data) {
+    const dateString = String(data);
+    const inicioDia = new Date(`${dateString}T00:00:00.000Z`);
+    const fimDia = new Date(`${dateString}T23:59:59.999Z`);
+
+    whereClause.dataReserva = {
+      gte: inicioDia,
+      lte: fimDia
+    };
+  }
+
+  try {
+    const reservas = await prisma.reserva.findMany({
+      where: whereClause,
+      include: {
+        cliente: { select: { nome: true } },
+        area: true // Importante incluir a área
+      },
+      orderBy: { dataReserva: 'asc' }
+    });
+    res.status(200).json(reservas);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Não foi possível carregar as reservas." });
+  }
+});
+
+// 5. Criar Reserva (CORRIGIDO - PONTO CRÍTICO)
 router.post("/", async (req, res) => {
   const clienteId = req.userLogadoId;
   if (!clienteId) {
     return res.status(401).json({ erro: "Usuário não autenticado." });
   }
+  
   const result = reservaSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
   }
+
   const dataReserva = new Date(result.data.dataReserva);
   if (dataReserva < new Date()) {
       return res.status(400).json({ erro: "Não é possível fazer uma reserva para uma data passada." });
   }
-  
+
+  // Verificar conflito usando a relação
   const conflito = await prisma.reserva.findFirst({
       where: {
-          area: result.data.area,
+          area: { nome: result.data.area }, // Busca pelo nome na tabela relacionada
           dataReserva: dataReserva,
           status: { in: [StatusReserva.CONFIRMADA, StatusReserva.PENDENTE] }
       }
@@ -75,14 +177,28 @@ router.post("/", async (req, res) => {
   if (conflito) {
       return res.status(409).json({ erro: "Esta data já está reservada ou aguardando confirmação." });
   }
-  
+
   try {
+    // Primeiro precisamos achar o ID da área baseada no nome
+    // (Ou poderíamos usar connect direto se tivéssemos certeza que existe, 
+    // mas é bom garantir para evitar erro 500 feio)
+    const areaExiste = await prisma.areaComum.findUnique({
+        where: { nome: result.data.area }
+    });
+
+    if (!areaExiste) {
+        return res.status(404).json({ erro: "Área não encontrada no sistema." });
+    }
+
     const novaReserva = await prisma.reserva.create({
       data: {
-        ...result.data,
         dataReserva: dataReserva,
+        valor: result.data.valor,
+        capacidade: result.data.capacidade,
+        horario: result.data.horario,
         status: StatusReserva.PENDENTE,
-        clienteId,
+        clienteId, // Como você usou clienteId aqui...
+        areaId: areaExiste.id // ...use areaId aqui também (ao invés de connect)
       },
     });
     res.status(201).json(novaReserva);
@@ -92,21 +208,50 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/minhas", async (req, res) => {
-  const clienteId = req.userLogadoId;
-  if (!clienteId) {
-    return res.status(401).json({ erro: "Usuário não autenticado." });
-  }
-  try {
-    const reservas = await prisma.reserva.findMany({
-      where: { clienteId },
-      orderBy: { dataReserva: 'desc' }
-    });
-    res.status(200).json(reservas);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ erro: "Não foi possível carregar suas reservas." });
-  }
+// 6. Atualizar Status (CORRIGIDO)
+router.patch("/:id/status", async (req, res) => {
+    if (req.userLogadoNivel !== 2) {
+        return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
+    }
+    const { id } = req.params;
+    const result = statusSchema.safeParse(req.body);
+    if (!result.success) {
+        return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
+    }
+    try {
+        // Precisamos do include area para verificar conflito abaixo
+        const reserva = await prisma.reserva.findUnique({
+            where: { id: Number(id) },
+            include: { area: true } 
+        });
+        
+        if (!reserva) {
+            return res.status(404).json({ erro: "Reserva não encontrada." });
+        }
+
+        if (result.data.status === StatusReserva.CONFIRMADA) {
+             const conflito = await prisma.reserva.findFirst({
+                where: {
+                    areaId: reserva.areaId, // Usa o ID direto
+                    dataReserva: reserva.dataReserva,
+                    status: StatusReserva.CONFIRMADA,
+                    id: { not: reserva.id }
+                }
+            });
+            if (conflito) {
+                return res.status(409).json({ erro: "Conflito: Já existe uma reserva CONFIRMADA para este dia/área." });
+            }
+        }
+
+        const reservaAtualizada = await prisma.reserva.update({
+            where: { id: Number(id) },
+            data: { status: result.data.status }
+        });
+        res.status(200).json(reservaAtualizada);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: "Não foi possível atualizar o status da reserva." });
+    }
 });
 
 router.delete("/:id", async (req, res) => {
@@ -129,7 +274,7 @@ router.delete("/:id", async (req, res) => {
         if (reserva.status === StatusReserva.CANCELADA) {
             return res.status(403).json({ erro: "Esta reserva já está cancelada." });
         }
-        
+
         const reservaCancelada = await prisma.reserva.update({
             where: { id: Number(id) },
             data: { status: StatusReserva.CANCELADA }
@@ -141,57 +286,5 @@ router.delete("/:id", async (req, res) => {
         res.status(500).json({ erro: "Não foi possível cancelar a reserva." });
     }
 });
-
-
-// rotas admin
-router.get("/", async (req, res) => {
-  if (req.userLogadoNivel !== 2) {
-    return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
-  }
-  const { status } = req.query;
-  try {
-    const reservas = await prisma.reserva.findMany({
-      where: {
-        status: status ? (status as StatusReserva) : undefined
-      },
-      include: {
-        cliente: { select: { nome: true } }
-      },
-      orderBy: { dataReserva: 'asc' }
-    });
-    res.status(200).json(reservas);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ erro: "Não foi possível carregar as reservas." });
-  }
-});
-
-router.patch("/:id/status", async (req, res) => {
-    if (req.userLogadoNivel !== 2) {
-        return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
-    }
-    const { id } = req.params;
-    const result = statusSchema.safeParse(req.body);
-    if (!result.success) {
-        return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
-    }
-    try {
-        const reserva = await prisma.reserva.findUnique({
-            where: { id: Number(id) }
-        });
-        if (!reserva) {
-            return res.status(404).json({ erro: "Reserva não encontrada." });
-        }
-        const reservaAtualizada = await prisma.reserva.update({
-            where: { id: Number(id) },
-            data: { status: result.data.status }
-        });
-        res.status(200).json(reservaAtualizada);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ erro: "Não foi possível atualizar o status da reserva." });
-    }
-});
-
 
 export default router;

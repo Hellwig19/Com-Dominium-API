@@ -117,4 +117,41 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+router.get("/portaria/hoje", async (req, res) => {
+  const nivel = req.userLogadoNivel;
+  
+  // Nível 3 = Porteiro, Nível 2 = Admin
+  if (!nivel || (nivel !== 3 && nivel !== 2)) {
+    return res.status(403).json({ erro: "Acesso negado." });
+  }
+
+  try {
+    const hojeInicio = new Date();
+    hojeInicio.setHours(0, 0, 0, 0);
+    
+    const hojeFim = new Date();
+    hojeFim.setHours(23, 59, 59, 999);
+
+    const visitas = await prisma.visita.findMany({
+      where: { 
+        dataVisita: {
+          gte: hojeInicio,
+          lte: hojeFim
+        }
+      },
+      include: {
+        residencia: {
+          select: { numeroCasa: true }
+        }
+      },
+      orderBy: { horario: 'asc' }
+    });
+    res.status(200).json(visitas);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Erro ao buscar agenda da portaria." });
+  }
+});
+
+
 export default router;

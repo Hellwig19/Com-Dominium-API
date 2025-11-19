@@ -13,7 +13,7 @@ const sugestaoSchema = z.object({
 
 router.use(verificaToken);
 
-// rotas cliente
+// 1. CRIAR SUGESTÃO (Disponível para todos logados)
 router.post("/", async (req, res) => {
   const clienteId = req.userLogadoId;
 
@@ -40,6 +40,7 @@ router.post("/", async (req, res) => {
   }
 });
 
+// 2. MINHAS SUGESTÕES (Para o morador ver as dele)
 router.get("/minhas", async (req, res) => {
   const clienteId = req.userLogadoId;
 
@@ -59,16 +60,28 @@ router.get("/minhas", async (req, res) => {
   }
 });
 
-// rotas admin
+// 3. LISTAR TODAS (Para Admin, Porteiro e Zeladora)
 router.get("/", async (req, res) => {
-  if (req.userLogadoNivel !== 2) {
-    return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
+  const nivel = req.userLogadoNivel;
+  
+  // IDs de permissão: 2=Admin, 3=Porteiro, 5=Zeladora
+  const niveisPermitidos = [2, 3, 5];
+
+  if (!nivel || !niveisPermitidos.includes(nivel)) {
+    return res.status(403).json({ erro: "Acesso negado: permissão insuficiente." });
   }
 
   try {
     const sugestoes = await prisma.sugestao.findMany({
       include: {
-        cliente: { select: { nome: true } }
+        cliente: { 
+            select: { 
+                nome: true,
+                residencias: {
+                    select: { numeroCasa: true } // Necessário para o frontend
+                }
+            } 
+        }
       },
       orderBy: { data: 'desc' }
     });
@@ -79,10 +92,11 @@ router.get("/", async (req, res) => {
   }
 });
 
+// 4. DELETAR SUGESTÃO
 router.delete("/:id", async (req, res) => {
     const { id } = req.params;
     const userId = req.userLogadoId;
-    const userLevel = req.userLogadoNivel;
+    const userLevel = req.userLogadoNivel || 0;
 
     if (!userId) {
         return res.status(401).json({ erro: "Usuário não autenticado." });
@@ -97,10 +111,14 @@ router.delete("/:id", async (req, res) => {
             return res.status(404).json({ erro: "Sugestão não encontrada." });
         }
 
+        // Quem pode apagar?
+        // 1. O dono da sugestão
+        // 2. Admin (Nível 2)
+        // 3. Zeladora (Nível 5) - Para marcar como resolvido/limpar
         const isOwner = sugestao.clienteId === userId;
-        const isAdmin = userLevel === 2;
+        const isStaff = [2, 5].includes(userLevel);
 
-        if (!isOwner && !isAdmin) {
+        if (!isOwner && !isStaff) {
             return res.status(403).json({ erro: "Acesso negado. Você não tem permissão para apagar esta sugestão." });
         }
 
