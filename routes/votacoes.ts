@@ -22,7 +22,7 @@ router.use(verificaToken);
 
 
 router.post("/", async (req, res) => {
-    if (req.userLogadoNivel !== 2) {
+    if (req.userLogadoNivel !== 5) {
         return res.status(403).json({ erro: "Acesso negado." });
     }
 
