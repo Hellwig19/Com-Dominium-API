@@ -118,47 +118,60 @@ router.post("/:id/votar", async (req, res) => {
 });
 
 router.get("/ativa", async (req, res) => {
-    try {
+  try {
       const agora = new Date();
-  
-      const votacaoAtiva = await prisma.votacao.findFirst({
-        where: {
-          dataInicio: { lte: agora },
-          dataFim: { gte: agora } 
-        },
-        include: {
-          opcoes: true 
-        }
+      const clienteId = req.userLogadoId as string; 
+
+      const votacoesPendentes = await prisma.votacao.findMany({
+          where: {
+              dataInicio: { lte: agora },
+              dataFim: { gte: agora },
+              votos: {
+                  none: {
+                      clienteId: clienteId
+                  }
+              }
+          },
+          include: {
+              opcoes: true
+          },
+          orderBy: {
+              dataFim: 'asc' 
+          }
       });
-  
-      if (!votacaoAtiva) {
-        return res.status(200).json(null); 
+
+      if (!votacoesPendentes || votacoesPendentes.length === 0) {
+          return res.status(200).json([]);
       }
-  
-      const contagemDeVotos = await prisma.voto.groupBy({
-        by: ['opcaoId'],
-        where: { votacaoId: votacaoAtiva.id },
-        _count: { _all: true }
-      });
-  
-      const resultadosParciais = votacaoAtiva.opcoes.map(opcao => {
-        const contagem = contagemDeVotos.find(v => v.opcaoId === opcao.id);
-        return {
-          ...opcao,
-          votos: contagem ? contagem._count._all : 0
-        };
-      });
-  
-      res.status(200).json({
-        ...votacaoAtiva,
-        opcoes: resultadosParciais 
-      });
-  
-    } catch (error) {
+
+      const votacoesFormatadas = await Promise.all(votacoesPendentes.map(async (votacao) => {
+          const contagemDeVotos = await prisma.voto.groupBy({
+              by: ['opcaoId'],
+              where: { votacaoId: votacao.id },
+              _count: { _all: true }
+          });
+
+          const resultadosParciais = votacao.opcoes.map(opcao => {
+              const contagem = contagemDeVotos.find(v => v.opcaoId === opcao.id);
+              return {
+                  ...opcao,
+                  votos: contagem ? contagem._count._all : 0
+              };
+          });
+
+          return {
+              ...votacao,
+              opcoes: resultadosParciais
+          };
+      }));
+
+      res.status(200).json(votacoesFormatadas);
+
+  } catch (error) {
       console.error(error);
-      res.status(500).json({ erro: "Não foi possível obter a votação ativa." });
-    }
-  });
+      res.status(500).json({ erro: "Não foi possível obter as votações ativas." });
+  }
+});
 
 router.get("/:id/resultados", async (req, res) => {
     const { id: votacaoId } = req.params;
