@@ -1,6 +1,6 @@
-// /routes/avisos.ts
 
-import { PrismaClient, TipoAviso } from "@prisma/client"; // <<< MUDANÇA 1: Importar o Enum 'TipoAviso'
+
+import { PrismaClient, TipoAviso } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
 import { verificaToken } from "../middlewares/verificaToken"; 
@@ -8,17 +8,14 @@ import { verificaToken } from "../middlewares/verificaToken";
 const prisma = new PrismaClient();
 const router = Router();
 
-// <<< MUDANÇA 2: Atualizar o Zod Schema para incluir o 'tipo' >>>
 const avisoSchema = z.object({
   titulo: z.string().min(5, { message: "O título deve ter no mínimo 5 caracteres." }),
   descricao: z.string().min(10, { message: "A descrição deve ter no mínimo 10 caracteres." }),
-  tipo: z.nativeEnum(TipoAviso).optional(), // Define 'tipo' como opcional (usará o default 'NORMAL' do schema)
+  tipo: z.nativeEnum(TipoAviso).optional(), 
 });
 
 router.use(verificaToken);
 
-// Rota GET (Não precisa de nenhuma mudança)
-// Ela automaticamente já vai incluir o novo campo 'tipo' ao buscar os avisos
 router.get("/", async (req, res) => {
   try {
     const avisos = await prisma.aviso.findMany({
@@ -36,7 +33,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// <<< MUDANÇA 3: Atualizar a rota POST para salvar o 'tipo' >>>
 router.post("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -57,7 +53,7 @@ router.post("/", async (req, res) => {
       data: {
         titulo: result.data.titulo,
         descricao: result.data.descricao,
-        tipo: result.data.tipo, // Passa o 'tipo' (ex: "URGENTE") para o banco de dados
+        tipo: result.data.tipo, 
         adminId,
       },
     });
@@ -68,7 +64,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Rota DELETE (Não precisa de nenhuma mudança)
 router.delete("/:id", async (req, res) => {
     const { id } = req.params;
     const adminId = req.userLogadoId;

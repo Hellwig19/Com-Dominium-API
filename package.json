@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "dev": "npx ts-node-dev --respawn index.ts"
+  "start": "ts-node index.ts",
+  "dev": "npx ts-node-dev --respawn index.ts",
+  "vercel-build": "npx prisma migrate deploy",
+  "build": "tsc"
   },
   "keywords": [],
   "author": "",

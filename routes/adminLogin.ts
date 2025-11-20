@@ -9,7 +9,6 @@ import { z } from 'zod';
 const prisma = new PrismaClient();
 const router = Router();
 
-// Schema de validação alterado para CPF
 const loginSchema = z.object({
   cpf: z.string().length(11, { message: "O CPF deve conter 11 dígitos." }),
   senha: z.string().min(1, { message: "A senha não pode estar em branco." }),
@@ -26,7 +25,6 @@ router.post("/", async (req, res) => {
   const { cpf, senha } = result.data;
 
   try {
-    // Busca o admin pelo CPF e verifica se está ativo
     const admin = await prisma.admin.findFirst({
       where: { 
         cpf,
@@ -38,7 +36,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ erro: mensaPadrao });
     }
 
-    // Gera o token com o padrão unificado que definimos
     const token = jwt.sign({
       userId: admin.id,
       userName: admin.nome,
@@ -48,7 +45,6 @@ router.post("/", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // Retorna os dados, incluindo o nível, para o front-end
     res.status(200).json({
       id: admin.id,
       nome: admin.nome,

@@ -13,7 +13,6 @@ const sugestaoSchema = z.object({
 
 router.use(verificaToken);
 
-// 1. CRIAR SUGESTÃO (Disponível para todos logados)
 router.post("/", async (req, res) => {
   const clienteId = req.userLogadoId;
 
@@ -40,7 +39,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 2. MINHAS SUGESTÕES (Para o morador ver as dele)
 router.get("/minhas", async (req, res) => {
   const clienteId = req.userLogadoId;
 
@@ -60,11 +58,9 @@ router.get("/minhas", async (req, res) => {
   }
 });
 
-// 3. LISTAR TODAS (Para Admin, Porteiro e Zeladora)
 router.get("/", async (req, res) => {
   const nivel = req.userLogadoNivel;
   
-  // IDs de permissão: 2=Admin, 3=Porteiro, 5=Zeladora
   const niveisPermitidos = [2, 3, 5];
 
   if (!nivel || !niveisPermitidos.includes(nivel)) {
@@ -78,7 +74,7 @@ router.get("/", async (req, res) => {
             select: { 
                 nome: true,
                 residencias: {
-                    select: { numeroCasa: true } // Necessário para o frontend
+                    select: { numeroCasa: true }
                 }
             } 
         }
@@ -92,7 +88,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 4. DELETAR SUGESTÃO
 router.delete("/:id", async (req, res) => {
     const { id } = req.params;
     const userId = req.userLogadoId;
@@ -111,10 +106,6 @@ router.delete("/:id", async (req, res) => {
             return res.status(404).json({ erro: "Sugestão não encontrada." });
         }
 
-        // Quem pode apagar?
-        // 1. O dono da sugestão
-        // 2. Admin (Nível 2)
-        // 3. Zeladora (Nível 5) - Para marcar como resolvido/limpar
         const isOwner = sugestao.clienteId === userId;
         const isStaff = [2, 5].includes(userLevel);
 

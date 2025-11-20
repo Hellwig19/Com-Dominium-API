@@ -22,8 +22,6 @@ const adminSchema = z.object({
     .max(5, { message: "O nível deve ser no máximo 5." })
 });
 
-// router.use(verificaToken);
-
 router.get("/", async (req, res) => {
   try {
     const admins = await prisma.admin.findMany({

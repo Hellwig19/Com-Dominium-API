@@ -20,7 +20,6 @@ const statusSchema = z.object({
 
 router.use(verificaToken);
 
-// 1. Buscar datas ocupadas (CORRIGIDO)
 router.get("/datas-ocupadas", async (req, res) => {
     const { area } = req.query;
 
@@ -31,7 +30,6 @@ router.get("/datas-ocupadas", async (req, res) => {
     try {
         const reservasConfirmadas = await prisma.reserva.findMany({
             where: {
-                // AQUI MUDOU: Filtra pelo nome dentro da relação area
                 area: {
                     nome: String(area) 
                 },
@@ -51,7 +49,6 @@ router.get("/datas-ocupadas", async (req, res) => {
     }
 });
 
-// 2. Buscar o que está ocupado hoje (CORRIGIDO)
 router.get("/hoje", async (req, res) => {
   try {
     const hojeInicio = new Date();
@@ -68,11 +65,9 @@ router.get("/hoje", async (req, res) => {
         },
         status: 'CONFIRMADA'
       },
-      // AQUI MUDOU: Trazemos os dados da area relacionada
       include: { area: true } 
     });
 
-    // Mapeamos para devolver apenas os nomes, como o front espera
     const areasOcupadas = reservasHoje.map(r => r.area.nome);
     res.status(200).json(areasOcupadas);
   } catch (error) {
@@ -80,7 +75,6 @@ router.get("/hoje", async (req, res) => {
   }
 });
 
-// 3. Minhas Reservas (CORRIGIDO)
 router.get("/minhas", async (req, res) => {
   const clienteId = req.userLogadoId;
   if (!clienteId) {
@@ -89,15 +83,13 @@ router.get("/minhas", async (req, res) => {
   try {
     const reservas = await prisma.reserva.findMany({
       where: { clienteId },
-      include: { area: true }, // Inclui detalhes da área
+      include: { area: true }, 
       orderBy: { dataReserva: 'desc' }
     });
     
-    // Opcional: Achatar o objeto para facilitar pro front antigo, 
-    // ou você pode ajustar o front para ler 'reserva.area.nome'
     const reservasFormatadas = reservas.map(r => ({
         ...r,
-        area: r.area.nome // Mantém compatibilidade com front antigo que espera string
+        area: r.area.nome 
     }));
 
     res.status(200).json(reservasFormatadas);
@@ -107,7 +99,6 @@ router.get("/minhas", async (req, res) => {
   }
 });
 
-// 4. Listar todas (Admin) (CORRIGIDO)
 router.get("/", async (req, res) => {
   if (req.userLogadoNivel !== 2) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -137,7 +128,7 @@ router.get("/", async (req, res) => {
       where: whereClause,
       include: {
         cliente: { select: { nome: true } },
-        area: true // Importante incluir a área
+        area: true
       },
       orderBy: { dataReserva: 'asc' }
     });
@@ -148,7 +139,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 5. Criar Reserva (CORRIGIDO - PONTO CRÍTICO)
 router.post("/", async (req, res) => {
   const clienteId = req.userLogadoId;
   if (!clienteId) {
@@ -165,10 +155,9 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ erro: "Não é possível fazer uma reserva para uma data passada." });
   }
 
-  // Verificar conflito usando a relação
   const conflito = await prisma.reserva.findFirst({
       where: {
-          area: { nome: result.data.area }, // Busca pelo nome na tabela relacionada
+          area: { nome: result.data.area },
           dataReserva: dataReserva,
           status: { in: [StatusReserva.CONFIRMADA, StatusReserva.PENDENTE] }
       }
@@ -179,9 +168,6 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    // Primeiro precisamos achar o ID da área baseada no nome
-    // (Ou poderíamos usar connect direto se tivéssemos certeza que existe, 
-    // mas é bom garantir para evitar erro 500 feio)
     const areaExiste = await prisma.areaComum.findUnique({
         where: { nome: result.data.area }
     });
@@ -197,8 +183,8 @@ router.post("/", async (req, res) => {
         capacidade: result.data.capacidade,
         horario: result.data.horario,
         status: StatusReserva.PENDENTE,
-        clienteId, // Como você usou clienteId aqui...
-        areaId: areaExiste.id // ...use areaId aqui também (ao invés de connect)
+        clienteId,
+        areaId: areaExiste.id
       },
     });
     res.status(201).json(novaReserva);
@@ -208,7 +194,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 6. Atualizar Status (CORRIGIDO)
 router.patch("/:id/status", async (req, res) => {
     if (req.userLogadoNivel !== 2) {
         return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
@@ -219,7 +204,6 @@ router.patch("/:id/status", async (req, res) => {
         return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
     }
     try {
-        // Precisamos do include area para verificar conflito abaixo
         const reserva = await prisma.reserva.findUnique({
             where: { id: Number(id) },
             include: { area: true } 
@@ -232,7 +216,7 @@ router.patch("/:id/status", async (req, res) => {
         if (result.data.status === StatusReserva.CONFIRMADA) {
              const conflito = await prisma.reserva.findFirst({
                 where: {
-                    areaId: reserva.areaId, // Usa o ID direto
+                    areaId: reserva.areaId,
                     dataReserva: reserva.dataReserva,
                     status: StatusReserva.CONFIRMADA,
                     id: { not: reserva.id }

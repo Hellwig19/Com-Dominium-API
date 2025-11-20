@@ -62,12 +62,12 @@ router.get("/", async (req, res) => {
         orderBy: { dataInicio: 'desc' },
         include: {
           _count: {
-            select: { votos: true } // Conta o total de votos
+            select: { votos: true } 
           },
           opcoes: {
             include: {
               _count: {
-                select: { votos: true } // Conta votos por opção
+                select: { votos: true }
               }
             }
           }
@@ -123,23 +123,18 @@ router.get("/ativa", async (req, res) => {
   
       const votacaoAtiva = await prisma.votacao.findFirst({
         where: {
-          // Você pode usar o status ou as datas. Datas é mais seguro:
-          dataInicio: { lte: agora }, // "lte" = menor ou igual (started)
-          dataFim: { gte: agora } // "gte" = maior ou igual (not ended yet)
-          // Ou, se você gerencia o status manualmente:
-          // status: 'EM_ANDAMENTO'
+          dataInicio: { lte: agora },
+          dataFim: { gte: agora } 
         },
         include: {
-          opcoes: true // Precisamos das opções para exibir
+          opcoes: true 
         }
       });
   
       if (!votacaoAtiva) {
-        // Isso não é um erro, apenas não há votação ativa
         return res.status(200).json(null); 
       }
   
-      // Se achou, vamos pegar os resultados parciais (igual sua rota de resultados)
       const contagemDeVotos = await prisma.voto.groupBy({
         by: ['opcaoId'],
         where: { votacaoId: votacaoAtiva.id },
@@ -149,14 +144,14 @@ router.get("/ativa", async (req, res) => {
       const resultadosParciais = votacaoAtiva.opcoes.map(opcao => {
         const contagem = contagemDeVotos.find(v => v.opcaoId === opcao.id);
         return {
-          ...opcao, // Inclui id e texto da opção
+          ...opcao,
           votos: contagem ? contagem._count._all : 0
         };
       });
   
       res.status(200).json({
         ...votacaoAtiva,
-        opcoes: resultadosParciais // Substitui as opções pelas opções com contagem
+        opcoes: resultadosParciais 
       });
   
     } catch (error) {

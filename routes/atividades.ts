@@ -142,10 +142,9 @@ router.get("/geral", async (req, res) => {
   const LIMITE = 10;
 
   try {
-    // Busca as últimas visitas registradas (Agora funciona pois adicionamos createdAt)
     const visitas = await prisma.visita.findMany({
       take: 5, 
-      orderBy: { createdAt: 'desc' }, // Ordena pela data de CRIAÇÃO do registro
+      orderBy: { createdAt: 'desc' }, 
       include: { 
         residencia: { 
           select: { numeroCasa: true } 
@@ -163,9 +162,7 @@ router.get("/geral", async (req, res) => {
       }
     });
 
-    // Mapeamento
-    // Precisamos tipar explicitamente ou deixar o TS inferir. 
-    // Com o banco atualizado, o erro da 'residencia' vai sumir aqui.
+
     const feedVisitas = visitas.map(v => ({
         id: `vis-${v.id}`,
         tipo: 'VISITA',

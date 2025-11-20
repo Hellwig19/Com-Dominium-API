@@ -57,9 +57,14 @@ app.use("/visitantes", routesVisitantes)
 
 
 app.get('/', (req, res) => {
-  res.send('API: Com Dominium')
+  res.send('API: Com Dominium rodando no Vercel!')
 })
 
-app.listen(port, () => {
-  console.log(`Servidor rodando na porta: ${port}`)
-})
+
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Servidor rodando na porta: ${port}`)
+  })
+}
+
+export default app;

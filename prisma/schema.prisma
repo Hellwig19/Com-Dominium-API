@@ -216,6 +216,8 @@ model Encomendas{
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   status          StatusEncomenda   @default(AGUARDANDO_RETIRADA)
   dataChegada     DateTime          @default(now())
+  tipo            String?  @db.VarChar(30)
+  observacoes     String?  @db.VarChar(255)
   dataRetirada    DateTime?
   adminRegistroId String?           @db.VarChar(36)
   adminEntregaId  String?           @db.VarChar(36)

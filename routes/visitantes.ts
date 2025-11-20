@@ -1,4 +1,4 @@
-import { PrismaClient, StatusVisita } from "@prisma/client"; // Certifique-se de importar StatusVisita
+import { PrismaClient, StatusVisita } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
 import { verificaToken } from "../middlewares/verificaToken"; 
@@ -16,7 +16,6 @@ const visitanteSchema = z.object({
 
 router.use(verificaToken);
 
-// 1. REGISTRAR ENTRADA
 router.post("/", async (req, res) => {
   const nivel = req.userLogadoNivel;
   if (!nivel || (nivel !== 3 && nivel !== 2 && nivel !== 5)) {
@@ -37,7 +36,7 @@ router.post("/", async (req, res) => {
         porteiroId: req.userLogadoId,
         
         dataEntrada: new Date(),
-        status: StatusVisita.DENTRO // Garante que entra como DENTRO
+        status: StatusVisita.DENTRO
       }
     });
     res.status(201).json(novoVisitante);
@@ -47,7 +46,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 2. LISTAR VISITANTES DO DIA
 router.get("/hoje", async (req, res) => {
   try {
     const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0);
@@ -65,14 +63,13 @@ router.get("/hoje", async (req, res) => {
   }
 });
 
-// 3. REGISTRAR SAÍDA (A CORREÇÃO ESTÁ AQUI)
 router.patch("/:id/saida", async (req, res) => {
   const { id } = req.params;
   try {
     const visitante = await prisma.visitante.update({
       where: { id: Number(id) },
       data: { 
-          status: StatusVisita.SAIU, // <--- ESSA LINHA É ESSENCIAL PARA MUDAR O BOTÃO
+          status: StatusVisita.SAIU, 
           dataSaida: new Date() 
       }
     });
