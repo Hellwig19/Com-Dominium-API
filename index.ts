@@ -24,6 +24,8 @@ import routesAtividades from './routes/atividades'
 import routesCadastro from './routes/cadastro'
 import routesAreaComum from './routes/areas'
 import routesVisitantes from './routes/visitantes';
+import routesManutencao from './routes/manutencao';
+import routesNotificacoes from './routes/notificacoes'
 
 
 const app = express()
@@ -53,6 +55,10 @@ app.use("/atividades", routesAtividades)
 app.use("/cadastro", routesCadastro)
 app.use("/areas", routesAreaComum)
 app.use("/visitantes", routesVisitantes)
+app.use("/manutencoes", routesManutencao);
+app.use("/notificacoes", routesNotificacoes)
+
+
 
 
 

@@ -40,6 +40,8 @@ model Cliente {
   recuperaSenhas RecuperaSenha[]
   sugestoes    Sugestao[]
   documentos    Documento[]
+  manutencoes Manutencao[]
+  notificacoes Notificacao[]
   @@map("clientes")
 }
 
@@ -310,6 +312,30 @@ model Sugestao{
   @@map("sugestoes")
 }
 
+model Manutencao {
+  id          Int      @id @default(autoincrement())
+  titulo      String   @db.VarChar(60)
+  descricao   String   @db.VarChar(255)
+  data        DateTime @default(now())
+  status      StatusManutencao @default(PENDENTE)
+  prioridade  Boolean  @default(false)
+  clienteId   String   @db.VarChar(36)
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("manutencoes")
+}
+
+model Notificacao {
+  id          Int      @id @default(autoincrement())
+  mensagem    String   @db.VarChar(255)
+  lida        Boolean  @default(false)
+  data        DateTime @default(now())
+  clienteId   String   @db.VarChar(36)
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("notificacoes")
+}
+
 model AreaComum {
   id          Int           @id @default(autoincrement())
   nome        String        @unique @db.VarChar(60) // Ex: "Salão de Festas"
@@ -319,6 +345,12 @@ model AreaComum {
   reservas    Reserva[]     // Relação com reservas
   
   @@map("areas_comuns")
+}
+
+enum StatusManutencao {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDO
 }
 
 enum TipoAviso {
