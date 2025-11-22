@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  if (req.userLogadoNivel !== 2) {
+  if (req.userLogadoNivel !== 5) {
     return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
   }
 
@@ -68,7 +68,7 @@ router.delete("/:id", async (req, res) => {
     const { id } = req.params;
     const adminId = req.userLogadoId;
 
-    if (req.userLogadoNivel !== 2) {
+    if (req.userLogadoNivel !== 5) {
         return res.status(403).json({ erro: "Acesso negado: rota exclusiva para administradores." });
     }
 
