@@ -304,6 +304,7 @@ model Sugestao{
   titulo        String   @db.VarChar(60)
   descricao     String   @db.VarChar(255)
   data          DateTime @default(now())
+  lido          Boolean  @default(false)
   clienteId     String   @db.VarChar(36)
   cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   @@map("sugestoes")

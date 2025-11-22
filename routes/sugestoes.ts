@@ -11,6 +11,10 @@ const sugestaoSchema = z.object({
   descricao: z.string().min(10, { message: "A descrição deve ter no mínimo 10 caracteres." }),
 });
 
+const lidoSchema = z.object({
+    lido: z.boolean({ required_error: "O status lido é obrigatório." })
+});
+
 router.use(verificaToken);
 
 router.post("/", async (req, res) => {
@@ -30,6 +34,7 @@ router.post("/", async (req, res) => {
       data: {
         ...result.data,
         clienteId,
+        lido: false, 
       },
     });
     res.status(201).json(novaSugestao);
@@ -86,6 +91,32 @@ router.get("/", async (req, res) => {
     console.error(error);
     res.status(500).json({ erro: "Não foi possível carregar as sugestões." });
   }
+});
+
+router.patch("/:id/lido", async (req, res) => {
+    const { id } = req.params;
+    const nivel = req.userLogadoNivel;
+    const niveisPermitidos = [2, 3, 5];
+
+    if (!nivel || !niveisPermitidos.includes(nivel)) {
+        return res.status(403).json({ erro: "Acesso negado: permissão insuficiente." });
+    }
+
+    const result = lidoSchema.safeParse(req.body);
+    if (!result.success) {
+        return res.status(400).json({ erros: result.error.errors.map(e => e.message) });
+    }
+
+    try {
+        const sugestaoAtualizada = await prisma.sugestao.update({
+            where: { id: Number(id) },
+            data: { lido: result.data.lido }
+        });
+        res.status(200).json(sugestaoAtualizada);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: "Não foi possível atualizar o status da sugestão." });
+    }
 });
 
 router.delete("/:id", async (req, res) => {
