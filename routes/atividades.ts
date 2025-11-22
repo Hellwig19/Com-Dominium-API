@@ -1,5 +1,3 @@
-
-
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
 import { verificaToken } from "../middlewares/verificaToken";
@@ -34,7 +32,14 @@ router.get("/recentes", async (req, res) => {
       where: { clienteId },
       orderBy: { dataReserva: 'desc' }, 
       take: LIMITE_POR_TIPO,
-      select: { id: true, area: true, dataReserva: true, status: true }
+      select: { 
+        id: true, 
+        area: {
+            select: { nome: true }
+        }, 
+        dataReserva: true, 
+        status: true 
+      }
     });
 
     const visitas = await prisma.visita.findMany({
@@ -85,7 +90,15 @@ router.get("/recentes", async (req, res) => {
     });
 
     const feedEncomendas: FeedItem[] = encomendas.map(item => ({ id: `enc-${item.id}`, tipo: 'ENCOMENDA', titulo: `Nova encomenda: ${item.remetente}`, subtitulo: `Status: ${item.status.replace('_', ' ')}`, timestamp: item.dataChegada }));
-    const feedReservas: FeedItem[] = reservas.map(item => ({ id: `res-${item.id}`, tipo: 'RESERVA', titulo: `Reserva: ${item.area}`, subtitulo: `Status: ${item.status}`, timestamp: item.dataReserva }));
+    
+    const feedReservas: FeedItem[] = reservas.map(item => ({ 
+        id: `res-${item.id}`, 
+        tipo: 'RESERVA', 
+        titulo: `Reserva: ${item.area.nome}`,
+        subtitulo: `Status: ${item.status}`, 
+        timestamp: item.dataReserva 
+    }));
+
     const feedVisitas: FeedItem[] = visitas.map(item => ({ id: `vis-${item.id}`, tipo: 'VISITA', titulo: `Visita autorizada: ${item.nome}`, subtitulo: `Em: ${item.dataVisita.toLocaleDateString('pt-BR')}`, timestamp: item.dataVisita }));
     const feedSugestoes: FeedItem[] = sugestoes.map(item => ({ id: `sug-${item.id}`, tipo: 'SUGESTAO', titulo: `Enviado: ${item.titulo}`, subtitulo: `Em: ${item.data.toLocaleDateString('pt-BR')}`, timestamp: item.data }));
     const feedVotos: FeedItem[] = votos.map(item => ({ id: `voto-${item.id}`, tipo: 'VOTO', titulo: `Votou em: ${item.votacao.titulo}`, subtitulo: `Sua escolha: ${item.opcao.texto}`, timestamp: item.dataVoto }));
