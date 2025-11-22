@@ -1,7 +1,8 @@
-import { PrismaClient, StatusReserva } from "@prisma/client";
+import { PrismaClient, StatusReserva, StatusPagamento, MetodoPagamento } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
 import { verificaToken } from "../middlewares/verificaToken";
+
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -176,18 +177,34 @@ router.post("/", async (req, res) => {
         return res.status(404).json({ erro: "Área não encontrada no sistema." });
     }
 
-    const novaReserva = await prisma.reserva.create({
-      data: {
-        dataReserva: dataReserva,
-        valor: result.data.valor,
-        capacidade: result.data.capacidade,
-        horario: result.data.horario,
-        status: StatusReserva.PENDENTE,
-        clienteId,
-        areaId: areaExiste.id
-      },
+    const operacao = await prisma.$transaction(async (tx) => {
+      const novaReserva = await tx.reserva.create({
+        data: {
+          dataReserva: dataReserva,
+          valor: result.data.valor,
+          capacidade: result.data.capacidade,
+          horario: result.data.horario,
+          status: StatusReserva.PENDENTE,
+          clienteId,
+          areaId: areaExiste.id
+        },
+      });
+
+      await tx.pagamento.create({
+        data: {
+          boletos: `Reserva: ${result.data.area} (${result.data.horario})`,
+          dataVencimento: dataReserva,
+          valor: result.data.valor,
+          status: StatusPagamento.PENDENTE,
+          clienteId,
+          metodoPagamento: MetodoPagamento.PIX 
+        }
+      });
+
+      return novaReserva;
     });
-    res.status(201).json(novaReserva);
+
+    res.status(201).json(operacao);
   } catch (error) {
     console.error(error);
     res.status(500).json({ erro: "Não foi possível solicitar a reserva." });

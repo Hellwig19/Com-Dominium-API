@@ -1,4 +1,4 @@
-import { PrismaClient, StatusPagamento, MetodoPagamento } from "@prisma/client";
+import { PrismaClient, StatusPagamento, MetodoPagamento, StatusReserva } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
 import { verificaToken } from "../middlewares/verificaToken"; 
@@ -99,6 +99,66 @@ router.patch("/:id/confirmar", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ erro: "Não foi possível confirmar o pagamento." });
+  }
+});
+
+router.post("/:id/pagar", async (req, res) => {
+  const { id } = req.params;
+  const clienteId = req.userLogadoId;
+
+  if (!clienteId) {
+    return res.status(401).json({ erro: "Usuário não autenticado." });
+  }
+
+  try {
+    const pagamento = await prisma.pagamento.findFirst({
+      where: { 
+        id: Number(id),
+        clienteId: clienteId
+      }
+    });
+
+    if (!pagamento) {
+      return res.status(404).json({ erro: "Pagamento não encontrado." });
+    }
+
+    if (pagamento.status === StatusPagamento.PAGO) {
+      return res.status(400).json({ erro: "Este boleto já foi pago." });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pagamento.update({
+        where: { id: pagamento.id },
+        data: {
+          status: StatusPagamento.PAGO,
+          dataPagamento: new Date(),
+          metodoPagamento: MetodoPagamento.PIX
+        }
+      });
+
+      if (pagamento.boletos.startsWith("Reserva:")) {
+        const reservaPendente = await tx.reserva.findFirst({
+            where: {
+                clienteId: clienteId,
+                status: StatusReserva.PENDENTE,
+                valor: pagamento.valor,
+            }
+        });
+
+        if (reservaPendente) {
+            await tx.reserva.update({
+                where: { id: reservaPendente.id },
+                data: { status: StatusReserva.CONFIRMADA }
+            });
+        }
+      }
+    });
+
+    res.status(200).json({ mensagem: "Pagamento realizado e reserva confirmada (se aplicável)." });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Erro ao processar pagamento." });
   }
 });
 
