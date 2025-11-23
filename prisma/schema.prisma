@@ -268,7 +268,7 @@ model Votacao {
   descricao   String   @db.VarChar(255)
   dataInicio  DateTime
   dataFim     DateTime
-  status      StatusVotacao @default(AGENDADA)
+  status      StatusVotacao @default(EM_ANDAMENTO)
   adminId     String   @db.VarChar(36)
   admin       Admin    @relation(fields: [adminId], references: [id])
   opcoes      OpcaoVotacao[]
@@ -346,11 +346,11 @@ model Notificacao {
 
 model AreaComum {
   id          Int           @id @default(autoincrement())
-  nome        String        @unique @db.VarChar(60) // Ex: "Salão de Festas"
+  nome        String        @unique @db.VarChar(60)
   capacidade  Int           @db.SmallInt
   preco       Float         @db.Real
   status      StatusArea    @default(ATIVO)
-  reservas    Reserva[]     // Relação com reservas
+  reservas    Reserva[]     
   
   @@map("areas_comuns")
 }
