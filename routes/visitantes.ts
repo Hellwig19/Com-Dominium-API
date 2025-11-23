@@ -34,7 +34,6 @@ router.post("/", async (req, res) => {
         placa: result.data.placa ? result.data.placa.toUpperCase() : null,
         observacoes: result.data.observacoes,
         porteiroId: req.userLogadoId,
-        
         dataEntrada: new Date(),
         status: StatusVisita.DENTRO
       }
@@ -46,20 +45,105 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.post("/entrada-agendada", async (req, res) => {
+    const { nome, cpf, numeroCasa, placa, observacoes } = req.body;
+
+    try {
+        const hojeInicio = new Date(); hojeInicio.setHours(0,0,0,0);
+        const existe = await prisma.visitante.findFirst({
+            where: {
+                cpf: cpf,
+                dataEntrada: { gte: hojeInicio },
+                status: 'DENTRO'
+            }
+        });
+
+        if (existe) {
+            return res.status(400).json({ erro: "Esta pessoa já consta como DENTRO do condomínio." });
+        }
+
+        const novoVisitante = await prisma.visitante.create({
+            data: {
+                nome,
+                cpf,
+                numeroCasa,
+                placa,
+                observacoes,
+                porteiroId: req.userLogadoId,
+                dataEntrada: new Date(),
+                status: StatusVisita.DENTRO
+            }
+        });
+        res.status(201).json(novoVisitante);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: "Erro ao registrar entrada agendada." });
+    }
+});
+
 router.get("/hoje", async (req, res) => {
   try {
     const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0);
     const hojeFim = new Date(); hojeFim.setHours(23, 59, 59, 999);
-
-    const visitantes = await prisma.visitante.findMany({
+    const visitantesAtivos = await prisma.visitante.findMany({
       where: {
         dataEntrada: { gte: hojeInicio, lte: hojeFim }
       },
       orderBy: { dataEntrada: 'desc' }
     });
-    res.json(visitantes);
+
+    const visitasAgendadas = await prisma.visita.findMany({
+        where: {
+            dataVisita: { gte: hojeInicio, lte: hojeFim }
+        },
+        include: { residencia: { select: { numeroCasa: true } } }
+    });
+
+    const prestadoresAgendados = await prisma.prestador.findMany({
+        where: {
+            dataServico: { gte: hojeInicio, lte: hojeFim }
+        },
+        include: { residencia: { select: { numeroCasa: true } } }
+    });
+
+    const cpfsJaDentro = visitantesAtivos.map(v => v.cpf);
+
+    const listaAgendados = [
+        ...visitasAgendadas.map(v => ({
+            id: `v-${v.id}`,
+            tipoOriginal: 'VISITA',
+            nome: v.nome,
+            cpf: v.cpf,
+            numeroCasa: v.residencia.numeroCasa,
+            placa: null,
+            status: 'AGENDADO',
+            horario: v.horario, 
+            dataEntrada: null
+        })),
+        ...prestadoresAgendados.map(p => ({
+            id: `p-${p.id}`,
+            tipoOriginal: 'PRESTADOR',
+            nome: p.nome,
+            cpf: p.cpf,
+            numeroCasa: p.residencia.numeroCasa,
+            placa: null,
+            status: 'AGENDADO',
+            horario: p.horario,
+            dataEntrada: null
+        }))
+    ].filter(item => !cpfsJaDentro.includes(item.cpf)); 
+
+    const listaVisitantesReais = visitantesAtivos.map(v => ({
+        ...v,
+        tipoOriginal: 'REAL',
+        horario: new Date(v.dataEntrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    }));
+
+    res.json([...listaVisitantesReais, ...listaAgendados]);
+
   } catch (error) {
-    res.status(500).json({ erro: "Erro ao buscar lista." });
+    console.error(error);
+    res.status(500).json({ erro: "Erro ao buscar lista unificada." });
   }
 });
 
