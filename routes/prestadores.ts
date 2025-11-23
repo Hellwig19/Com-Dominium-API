@@ -60,6 +60,7 @@ router.post("/", async (req, res) => {
 
 router.get("/residencia/:residenciaId", async (req, res) => {
   const clienteId = req.userLogadoId;
+  const nivel = req.userLogadoNivel || 0;
   const { residenciaId } = req.params;
 
   if (!clienteId) {
@@ -67,8 +68,14 @@ router.get("/residencia/:residenciaId", async (req, res) => {
   }
 
   try {
+    let whereResidencia: any = { id: Number(residenciaId) };
+    
+    if (nivel < 2) {
+        whereResidencia.clienteId = clienteId;
+    }
+
     const residencia = await prisma.residencia.findFirst({
-      where: { id: Number(residenciaId), clienteId }
+      where: whereResidencia
     });
 
     if (!residencia) {
