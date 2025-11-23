@@ -2,10 +2,11 @@ import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
 import { z } from 'zod';
 import { verificaToken } from "../middlewares/verificaToken";
+import { Expo } from 'expo-server-sdk';
 
 const prisma = new PrismaClient();
 const router = Router();
-
+const expo = new Expo();
 const mensagemSchema = z.object({
   texto: z.string().min(1, "A mensagem não pode estar vazia"),
   clienteId: z.string().optional()
@@ -23,15 +24,11 @@ router.post("/", async (req, res) => {
   let targetClienteId = req.userLogadoId;
   
   if (isPortaria) {
-      if (!req.body.clienteId) {
-          return res.status(400).json({ erro: "Portaria deve informar o clienteId de destino." });
-      }
+      if (!req.body.clienteId) return res.status(400).json({ erro: "Cliente não informado" });
       targetClienteId = req.body.clienteId;
   }
 
-  if (!targetClienteId) {
-      return res.status(400).json({ erro: "ID do morador não identificado." });
-  }
+  if (!targetClienteId) return res.status(400).json({ erro: "Destinatário inválido" });
 
   try {
     const novaMsg = await prisma.mensagemPortaria.create({
@@ -42,6 +39,24 @@ router.post("/", async (req, res) => {
         lido: false
       }
     });
+
+    if (isPortaria) {
+        const morador = await prisma.cliente.findUnique({
+            where: { id: targetClienteId },
+            select: { pushToken: true }
+        });
+
+        if (morador?.pushToken && Expo.isExpoPushToken(morador.pushToken)) {
+            await expo.sendPushNotificationsAsync([{
+                to: morador.pushToken,
+                sound: 'default',
+                title: 'Nova mensagem da Portaria 👮',
+                body: result.data.texto,
+                data: { url: '/chat' }, 
+            }]);
+        }
+    }
+
     res.status(201).json(novaMsg);
   } catch (error) {
     console.error(error);
@@ -95,6 +110,24 @@ router.get("/inbox", async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: "Erro ao carregar inbox." });
+    }
+});
+
+router.patch("/read", async (req, res) => {
+    if (!req.userLogadoId) return res.status(401).json({ erro: "Não autorizado" });
+
+    try {
+        await prisma.mensagemPortaria.updateMany({
+            where: {
+                clienteId: req.userLogadoId,  
+                enviadoPorPortaria: true,     
+                lido: false                   
+            },
+            data: { lido: true }
+        });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ erro: "Erro ao marcar como lido." });
     }
 });
 

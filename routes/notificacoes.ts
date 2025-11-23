@@ -1,11 +1,32 @@
 import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
+import { z } from "zod";
 import { verificaToken } from "../middlewares/verificaToken"; 
 
 const prisma = new PrismaClient();
 const router = Router();
 
 router.use(verificaToken);
+
+router.patch("/token", async (req, res) => {
+  const schema = z.object({ token: z.string() });
+  const result = schema.safeParse(req.body);
+
+  if (!result.success) {
+    return res.status(400).json({ erro: "Token inválido. Envie { token: '...' }" });
+  }
+
+  try {
+    await prisma.cliente.update({
+        where: { id: req.userLogadoId },
+        data: { pushToken: result.data.token }
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Erro ao salvar token:", error);
+    res.status(500).json({ erro: "Erro ao salvar token de notificação" });
+  }
+});
 
 router.get("/", async (req, res) => {
   const clienteId = req.userLogadoId; 
@@ -48,10 +69,14 @@ router.patch("/:id/lida", async (req, res) => {
 
 router.get("/nao-lidas", async (req, res) => {
     const clienteId = req.userLogadoId;
-    const count = await prisma.notificacao.count({
-        where: { clienteId, lida: false }
-    });
-    res.json({ count });
+    try {
+        const count = await prisma.notificacao.count({
+            where: { clienteId, lida: false }
+        });
+        res.json({ count });
+    } catch (error) {
+        res.status(500).json({ erro: "Erro ao contar notificações" });
+    }
 });
 
 export default router;

@@ -25,6 +25,7 @@ model Cliente {
   profissao     String   @db.VarChar(30)
   senha         String   @db.VarChar(60)     // senha deve ser varchar(60)
   ativo         Boolean  @default(false)
+  pushToken     String?  @db.VarChar(255)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt  
   contatos      Contato[]
