@@ -168,6 +168,9 @@ model Visita{
   dataVisita    DateTime 
   horario       String   @db.VarChar(5)
   observacoes   String?   @db.VarChar(255)
+  status        StatusVisita @default(AGENDADA)
+  dataEntrada   DateTime?
+  dataSaida     DateTime?
   residencia    Residencia @relation(fields: [residenciaId], references: [id])
   residenciaId  Int
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
@@ -203,6 +206,9 @@ model Prestador{
   dataServico   DateTime 
   horario       String   @db.VarChar(5)
   observacoes   String?   @db.VarChar(255)
+  status        StatusVisita @default(AGENDADA)
+  dataEntrada   DateTime?
+  dataSaida     DateTime?
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   clienteId     String   @db.VarChar(36)
   @@map("prestadores")

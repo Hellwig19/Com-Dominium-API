@@ -8,7 +8,7 @@ const router = Router();
 
 const visitanteSchema = z.object({
   nome: z.string().min(3, { message: "Nome obrigatório" }),
-  cpf: z.string().length(11, { message: "CPF deve ter 11 dígitos" }), 
+  cpf: z.string().length(11, { message: "CPF deve ter 11 dígitos" }),
   numeroCasa: z.string().min(1, { message: "Número da casa obrigatório" }),
   placa: z.string().optional(),
   observacoes: z.string().optional(),
@@ -49,13 +49,15 @@ router.post("/", async (req, res) => {
 
 router.post("/entrada-agendada", async (req, res) => {
     const { nome, cpf, numeroCasa, placa, observacoes } = req.body;
+    const cpfLimpo = limpaCpf(cpf);
 
     try {
         const hojeInicio = new Date(); hojeInicio.setHours(0,0,0,0);
-        
+        const hojeFim = new Date(); hojeFim.setHours(23,59,59,999);
+
         const existe = await prisma.visitante.findFirst({
             where: {
-                cpf: limpaCpf(cpf), 
+                cpf: cpfLimpo,
                 dataEntrada: { gte: hojeInicio },
                 status: 'DENTRO'
             }
@@ -68,15 +70,40 @@ router.post("/entrada-agendada", async (req, res) => {
         const novoVisitante = await prisma.visitante.create({
             data: {
                 nome,
-                cpf: limpaCpf(cpf),
+                cpf: cpfLimpo,
                 numeroCasa,
-                placa,
+                placa: placa?.toUpperCase(),
                 observacoes,
                 porteiroId: req.userLogadoId,
                 dataEntrada: new Date(),
                 status: StatusVisita.DENTRO
             }
         });
+        
+        await prisma.visita.updateMany({
+            where: { 
+                cpf: cpfLimpo, 
+                dataVisita: { gte: hojeInicio, lte: hojeFim }, 
+                status: 'AGENDADA' 
+            },
+            data: { 
+                status: StatusVisita.DENTRO, 
+                dataEntrada: new Date() 
+            }
+        });
+        
+        await prisma.prestador.updateMany({
+            where: { 
+                cpf: cpfLimpo, 
+                dataServico: { gte: hojeInicio, lte: hojeFim }, 
+                status: 'AGENDADA' 
+            },
+            data: { 
+                status: StatusVisita.DENTRO, 
+                dataEntrada: new Date() 
+            }
+        });
+
         res.status(201).json(novoVisitante);
     } catch (error) {
         console.error(error);
@@ -89,32 +116,39 @@ router.get("/hoje", async (req, res) => {
     const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0);
     const hojeFim = new Date(); hojeFim.setHours(23, 59, 59, 999);
     
-    const visitantesReais = await prisma.visitante.findMany({
-      where: {
-        dataEntrada: { gte: hojeInicio, lte: hojeFim }
-      },
+    const visitantesAtivos = await prisma.visitante.findMany({
+      where: { dataEntrada: { gte: hojeInicio, lte: hojeFim } },
       orderBy: { dataEntrada: 'desc' }
     });
 
+
     const visitasAgendadas = await prisma.visita.findMany({
-        where: { dataVisita: { gte: hojeInicio, lte: hojeFim } },
-        include: { residencia: { select: { numeroCasa: true } } }
+        where: { 
+            dataVisita: { gte: hojeInicio, lte: hojeFim },
+            status: 'AGENDADA' 
+        },
+        include: { 
+            residencia: { select: { numeroCasa: true } } 
+        }
     });
 
     const prestadoresAgendados = await prisma.prestador.findMany({
-        where: { dataServico: { gte: hojeInicio, lte: hojeFim } },
-        include: { residencia: { select: { numeroCasa: true } } }
+        where: { 
+            dataServico: { gte: hojeInicio, lte: hojeFim },
+            status: 'AGENDADA' 
+        },
+        include: { 
+            residencia: { select: { numeroCasa: true } } 
+        }
     });
-
-    const cpfsComRegistroHoje = visitantesReais.map(v => limpaCpf(v.cpf));
 
     const listaAgendados = [
         ...visitasAgendadas.map(v => ({
             id: `v-${v.id}`,
             tipoOriginal: 'VISITA',
             nome: v.nome,
-            cpf: limpaCpf(v.cpf),
-            numeroCasa: v.residencia.numeroCasa,
+            cpf: v.cpf,
+            numeroCasa: v.residencia?.numeroCasa || "S/N", 
             placa: null,
             status: 'AGENDADO',
             horario: v.horario, 
@@ -124,23 +158,23 @@ router.get("/hoje", async (req, res) => {
             id: `p-${p.id}`,
             tipoOriginal: 'PRESTADOR',
             nome: p.nome,
-            cpf: limpaCpf(p.cpf),
-            numeroCasa: p.residencia.numeroCasa,
+            cpf: p.cpf,
+            numeroCasa: p.residencia?.numeroCasa || "S/N",
             placa: null,
             status: 'AGENDADO',
             horario: p.horario,
             dataEntrada: null
         }))
-    ].filter(item => !cpfsComRegistroHoje.includes(item.cpf)); 
+    ];
 
-    const listaVisitantesReaisFormatada = visitantesReais.map(v => ({
+    const listaVisitantesReais = visitantesAtivos.map(v => ({
         ...v,
         tipoOriginal: 'REAL',
-        status: v.status, 
+        status: v.status,
         horario: new Date(v.dataEntrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
     }));
 
-    res.json([...listaVisitantesReaisFormatada, ...listaAgendados]);
+    res.json([...listaVisitantesReais, ...listaAgendados]);
 
   } catch (error) {
     console.error(error);
@@ -158,8 +192,36 @@ router.patch("/:id/saida", async (req, res) => {
           dataSaida: new Date() 
       }
     });
+
+    const hojeInicio = new Date(); hojeInicio.setHours(0,0,0,0);
+    const hojeFim = new Date(); hojeFim.setHours(23,59,59,999);
+    
+    const updateData = { 
+        status: StatusVisita.SAIU, 
+        dataSaida: new Date() 
+    };
+
+    await prisma.visita.updateMany({
+        where: { 
+            cpf: visitante.cpf, 
+            dataVisita: { gte: hojeInicio, lte: hojeFim }, 
+            status: 'DENTRO' 
+        },
+        data: updateData
+    });
+
+    await prisma.prestador.updateMany({
+        where: { 
+            cpf: visitante.cpf, 
+            dataServico: { gte: hojeInicio, lte: hojeFim }, 
+            status: 'DENTRO' 
+        },
+        data: updateData
+    });
+
     res.json(visitante);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ erro: "Erro ao registrar saída." });
   }
 });
