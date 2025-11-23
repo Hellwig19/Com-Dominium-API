@@ -8,11 +8,13 @@ const router = Router();
 
 const visitanteSchema = z.object({
   nome: z.string().min(3, { message: "Nome obrigatório" }),
-  cpf: z.string().length(11, { message: "CPF deve ter 11 dígitos" }),
+  cpf: z.string().length(11, { message: "CPF deve ter 11 dígitos" }), 
   numeroCasa: z.string().min(1, { message: "Número da casa obrigatório" }),
   placa: z.string().optional(),
   observacoes: z.string().optional(),
 });
+
+const limpaCpf = (valor: string) => valor ? valor.replace(/\D/g, "") : "";
 
 router.use(verificaToken);
 
@@ -29,7 +31,7 @@ router.post("/", async (req, res) => {
     const novoVisitante = await prisma.visitante.create({
       data: {
         nome: result.data.nome,
-        cpf: result.data.cpf,
+        cpf: limpaCpf(result.data.cpf),
         numeroCasa: result.data.numeroCasa,
         placa: result.data.placa ? result.data.placa.toUpperCase() : null,
         observacoes: result.data.observacoes,
@@ -50,9 +52,10 @@ router.post("/entrada-agendada", async (req, res) => {
 
     try {
         const hojeInicio = new Date(); hojeInicio.setHours(0,0,0,0);
+        
         const existe = await prisma.visitante.findFirst({
             where: {
-                cpf: cpf,
+                cpf: limpaCpf(cpf), 
                 dataEntrada: { gte: hojeInicio },
                 status: 'DENTRO'
             }
@@ -65,7 +68,7 @@ router.post("/entrada-agendada", async (req, res) => {
         const novoVisitante = await prisma.visitante.create({
             data: {
                 nome,
-                cpf,
+                cpf: limpaCpf(cpf),
                 numeroCasa,
                 placa,
                 observacoes,
@@ -85,7 +88,8 @@ router.get("/hoje", async (req, res) => {
   try {
     const hojeInicio = new Date(); hojeInicio.setHours(0, 0, 0, 0);
     const hojeFim = new Date(); hojeFim.setHours(23, 59, 59, 999);
-    const visitantesAtivos = await prisma.visitante.findMany({
+    
+    const visitantesReais = await prisma.visitante.findMany({
       where: {
         dataEntrada: { gte: hojeInicio, lte: hojeFim }
       },
@@ -93,27 +97,23 @@ router.get("/hoje", async (req, res) => {
     });
 
     const visitasAgendadas = await prisma.visita.findMany({
-        where: {
-            dataVisita: { gte: hojeInicio, lte: hojeFim }
-        },
+        where: { dataVisita: { gte: hojeInicio, lte: hojeFim } },
         include: { residencia: { select: { numeroCasa: true } } }
     });
 
     const prestadoresAgendados = await prisma.prestador.findMany({
-        where: {
-            dataServico: { gte: hojeInicio, lte: hojeFim }
-        },
+        where: { dataServico: { gte: hojeInicio, lte: hojeFim } },
         include: { residencia: { select: { numeroCasa: true } } }
     });
 
-    const cpfsJaDentro = visitantesAtivos.map(v => v.cpf);
+    const cpfsComRegistroHoje = visitantesReais.map(v => limpaCpf(v.cpf));
 
     const listaAgendados = [
         ...visitasAgendadas.map(v => ({
             id: `v-${v.id}`,
             tipoOriginal: 'VISITA',
             nome: v.nome,
-            cpf: v.cpf,
+            cpf: limpaCpf(v.cpf),
             numeroCasa: v.residencia.numeroCasa,
             placa: null,
             status: 'AGENDADO',
@@ -124,22 +124,23 @@ router.get("/hoje", async (req, res) => {
             id: `p-${p.id}`,
             tipoOriginal: 'PRESTADOR',
             nome: p.nome,
-            cpf: p.cpf,
+            cpf: limpaCpf(p.cpf),
             numeroCasa: p.residencia.numeroCasa,
             placa: null,
             status: 'AGENDADO',
             horario: p.horario,
             dataEntrada: null
         }))
-    ].filter(item => !cpfsJaDentro.includes(item.cpf)); 
+    ].filter(item => !cpfsComRegistroHoje.includes(item.cpf)); 
 
-    const listaVisitantesReais = visitantesAtivos.map(v => ({
+    const listaVisitantesReaisFormatada = visitantesReais.map(v => ({
         ...v,
         tipoOriginal: 'REAL',
+        status: v.status, 
         horario: new Date(v.dataEntrada).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
     }));
 
-    res.json([...listaVisitantesReais, ...listaAgendados]);
+    res.json([...listaVisitantesReaisFormatada, ...listaAgendados]);
 
   } catch (error) {
     console.error(error);
