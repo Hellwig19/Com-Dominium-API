@@ -59,7 +59,7 @@ router.post("/entrada-agendada", async (req, res) => {
             where: {
                 cpf: cpfLimpo,
                 dataEntrada: { gte: hojeInicio },
-                status: 'DENTRO'
+                status: StatusVisita.DENTRO
             }
         });
 
@@ -84,7 +84,7 @@ router.post("/entrada-agendada", async (req, res) => {
             where: { 
                 cpf: cpfLimpo, 
                 dataVisita: { gte: hojeInicio, lte: hojeFim }, 
-                status: 'AGENDADA' 
+                status: StatusVisita.AGENDADA 
             },
             data: { 
                 status: StatusVisita.DENTRO, 
@@ -96,7 +96,7 @@ router.post("/entrada-agendada", async (req, res) => {
             where: { 
                 cpf: cpfLimpo, 
                 dataServico: { gte: hojeInicio, lte: hojeFim }, 
-                status: 'AGENDADA' 
+                status: StatusVisita.AGENDADA 
             },
             data: { 
                 status: StatusVisita.DENTRO, 
@@ -121,11 +121,10 @@ router.get("/hoje", async (req, res) => {
       orderBy: { dataEntrada: 'desc' }
     });
 
-
     const visitasAgendadas = await prisma.visita.findMany({
         where: { 
             dataVisita: { gte: hojeInicio, lte: hojeFim },
-            status: 'AGENDADA' 
+            status: StatusVisita.AGENDADA 
         },
         include: { 
             residencia: { select: { numeroCasa: true } } 
@@ -135,7 +134,7 @@ router.get("/hoje", async (req, res) => {
     const prestadoresAgendados = await prisma.prestador.findMany({
         where: { 
             dataServico: { gte: hojeInicio, lte: hojeFim },
-            status: 'AGENDADA' 
+            status: StatusVisita.AGENDADA 
         },
         include: { 
             residencia: { select: { numeroCasa: true } } 
@@ -205,7 +204,7 @@ router.patch("/:id/saida", async (req, res) => {
         where: { 
             cpf: visitante.cpf, 
             dataVisita: { gte: hojeInicio, lte: hojeFim }, 
-            status: 'DENTRO' 
+            status: StatusVisita.DENTRO 
         },
         data: updateData
     });
@@ -214,7 +213,7 @@ router.patch("/:id/saida", async (req, res) => {
         where: { 
             cpf: visitante.cpf, 
             dataServico: { gte: hojeInicio, lte: hojeFim }, 
-            status: 'DENTRO' 
+            status: StatusVisita.DENTRO 
         },
         data: updateData
     });
