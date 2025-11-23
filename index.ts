@@ -23,10 +23,10 @@ import routesSugestoes from './routes/sugestoes'
 import routesAtividades from './routes/atividades'
 import routesCadastro from './routes/cadastro'
 import routesAreaComum from './routes/areas'
-import routesVisitantes from './routes/visitantes';
-import routesManutencao from './routes/manutencao';
+import routesVisitantes from './routes/visitantes'
+import routesManutencao from './routes/manutencao'
 import routesNotificacoes from './routes/notificacoes'
-
+import routesChat from './routes/chat'
 
 const app = express()
 const port = 3000
@@ -57,7 +57,7 @@ app.use("/areas", routesAreaComum)
 app.use("/visitantes", routesVisitantes)
 app.use("/manutencoes", routesManutencao);
 app.use("/notificacoes", routesNotificacoes)
-
+app.use("/chat", routesChat)
 
 
 
